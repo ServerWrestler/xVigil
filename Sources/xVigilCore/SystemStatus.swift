@@ -1,0 +1,48 @@
+import Foundation
+
+/// Snapshot of the Mac's built-in protection status.
+public struct SystemStatus: Sendable {
+    public let gatekeeperEnabled: Bool?
+    /// XProtect signature definitions version (e.g. "5347").
+    public let xprotectVersion: String?
+    /// XProtect Remediator app version, if installed.
+    public let remediatorVersion: String?
+
+    public static func current() -> SystemStatus {
+        SystemStatus(
+            gatekeeperEnabled: readGatekeeperStatus(),
+            xprotectVersion: bundleVersion(
+                at: "/Library/Apple/System/Library/CoreServices/XProtect.bundle"),
+            remediatorVersion: bundleVersion(
+                at: "/Library/Apple/System/Library/CoreServices/XProtect.app")
+        )
+    }
+
+    private static func bundleVersion(at path: String) -> String? {
+        let plistURL = URL(fileURLWithPath: path)
+            .appendingPathComponent("Contents/Info.plist")
+        guard let data = try? Data(contentsOf: plistURL),
+              let plist = try? PropertyListSerialization.propertyList(from: data, format: nil),
+              let info = plist as? [String: Any]
+        else { return nil }
+        return info["CFBundleShortVersionString"] as? String
+    }
+
+    private static func readGatekeeperStatus() -> Bool? {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/sbin/spctl")
+        process.arguments = ["--status"]
+        let stdout = Pipe()
+        process.standardOutput = stdout
+        process.standardError = Pipe()
+
+        guard (try? process.run()) != nil else { return nil }
+        let data = stdout.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+
+        guard let output = String(data: data, encoding: .utf8) else { return nil }
+        if output.contains("assessments enabled") { return true }
+        if output.contains("assessments disabled") { return false }
+        return nil
+    }
+}
