@@ -1,0 +1,66 @@
+#!/bin/sh
+# Blocks commits whose staged changes look like they contain secrets or
+# machine-specific personal data.
+#
+# One-time setup per clone:   git config core.hooksPath .githooks
+#
+# Machine-specific patterns (your username, email, etc.) belong in
+# .git/info/personal-patterns — one extended regex per line. That file lives
+# under .git/ so it can never be committed; do NOT add such patterns here,
+# because this file is public.
+#
+# Deliberate bypass: git commit --no-verify
+set -u
+
+# Added lines of the staged diff. This hook's own directory is excluded:
+# it legitimately contains the detection regexes.
+staged=$(git diff --cached --unified=0 --no-color -- . ':(exclude).githooks' \
+    | grep '^+' | grep -v '^+++' | cut -c2- || true)
+
+fail=0
+
+report() {
+    fail=1
+    echo "pre-commit: possible $1 in staged changes:" >&2
+    printf '%s\n' "$2" | head -5 | sed 's/^/    /' >&2
+    echo >&2
+}
+
+check() {
+    label=$1
+    pattern=$2
+    matches=$(printf '%s\n' "$staged" | grep -nE "$pattern" 2>/dev/null || true)
+    [ -n "$matches" ] && report "$label" "$matches"
+}
+
+check "private key block" '\-\-\-\-\-BEGIN .*PRIVATE KEY'
+check "AWS access key" 'AKIA[0-9A-Z]{16}'
+check "GitHub token" 'gh[pousr]_[A-Za-z0-9]{20,}'
+check "Slack token" 'xox[baprs]-[A-Za-z0-9-]{10,}'
+check "API key" 'sk-[A-Za-z0-9_-]{24,}'
+check "hardcoded credential" "(api[_-]?key|secret|passwd|password|auth[_-]?token)[[:space:]]*[:=][[:space:]]*[\"'][^\"']{6,}"
+# Absolute home paths leak your username. Test fixtures use /Users/x, which
+# the 2+ character requirement deliberately permits.
+check "absolute home path" '/Users/[A-Za-z][A-Za-z0-9_.-]+'
+check "email address" '[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+\.[A-Za-z]{2,}'
+
+# Local-only personal patterns (never committed).
+personal=".git/info/personal-patterns"
+if [ -f "$personal" ]; then
+    matches=$(printf '%s\n' "$staged" | grep -inE -f "$personal" 2>/dev/null || true)
+    [ -n "$matches" ] && report "personal data (see $personal)" "$matches"
+fi
+
+# Files that should never be committed regardless of content.
+suspicious_names=$(git diff --cached --name-only --diff-filter=A \
+    | grep -iE '(^|/)(\.env(\..+)?|id_rsa[^/]*|id_ed25519[^/]*|.+\.(pem|p12|key|keychain|mobileprovision))$' || true)
+[ -n "$suspicious_names" ] && report "sensitive file" "$suspicious_names"
+
+if [ "$fail" -ne 0 ]; then
+    cat >&2 <<'MSG'
+Commit blocked. Remove the flagged content, or if it is a false positive,
+bypass once with: git commit --no-verify
+MSG
+    exit 1
+fi
+exit 0

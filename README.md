@@ -29,6 +29,20 @@ Early prototype. Working so far:
   stream by time gap into logical activities (a 12h window collapses from ~28k
   entries to ~15 activities), titled by the dominant process.
 
+## Setup
+
+After cloning, enable the secret-scanning pre-commit hook (once per clone):
+
+```sh
+git config core.hooksPath .githooks
+```
+
+The hook blocks staged changes that look like keys, tokens, hardcoded
+credentials, absolute home paths, or email addresses. Machine-specific
+patterns (your own username, addresses, …) go in `.git/info/personal-patterns`
+(one extended regex per line) — that file lives under `.git/` and is never
+committed. Bypass a false positive with `git commit --no-verify`.
+
 ## Usage
 
 ```sh
