@@ -9,11 +9,25 @@ Early prototype. Working so far:
 
 - **Menu bar app** (`swift run xVigil`) — SwiftUI `MenuBarExtra` showing Gatekeeper
   status, XProtect definition/Remediator versions, and recent quarantine events.
+  Clicking an event opens it in the dashboard.
+- **Dashboard window** — `NavigationSplitView` with three sections: quarantine
+  events (searchable, filterable by agent/type, keyset-paginated), XProtect
+  activity (log entries clustered into scan runs), and protection status.
 - **Quarantine layer** (`QuarantineStore`) — read-only SQLite access to
-  `~/Library/Preferences/com.apple.LaunchServices.QuarantineEventsV2`.
-- **Log parsing prototype** (`XProtectLogReader` / `XProtectLogParser`) — shells out
+  `~/Library/Preferences/com.apple.LaunchServices.QuarantineEventsV2`, with
+  filtered queries and pagination.
+- **Event enrichment** (`EventEnricher` / `QuarantineFileLocator`) — locates the
+  on-disk file for an event by scanning common directories for a matching
+  `com.apple.quarantine` xattr UUID, then reports today's Gatekeeper verdict
+  (`spctl`) and code signature (`codesign`).
+- **Log parsing** (`XProtectLogReader` / `XProtectLogParser`) — shells out
   to `/usr/bin/log show --style ndjson` with an XProtect/Gatekeeper predicate and
-  parses entries into typed values with a rough detection/assessment/scan classification.
+  parses entries into typed values with a rough detection/assessment/scan
+  classification. Supports both relative windows and absolute time ranges (used
+  to show log context around a quarantine event).
+- **Activity grouping** (`XProtectActivityGrouper`) — clusters the raw entry
+  stream by time gap into logical activities (a 12h window collapses from ~28k
+  entries to ~15 activities), titled by the dominant process.
 
 ## Usage
 
@@ -26,6 +40,8 @@ swift run xvigil-cli status         # Gatekeeper + XProtect versions
 swift run xvigil-cli quarantine 20  # recent quarantine events
 swift run xvigil-cli agents         # event counts by downloading app
 swift run xvigil-cli xprotect-log 2h
+swift run xvigil-cli activities 12h # log entries grouped into activities
+swift run xvigil-cli enrich         # locate file + verdicts for newest event
 ```
 
 ## Layout
@@ -41,15 +57,22 @@ swift run xvigil-cli xprotect-log 2h
   (2001-01-01); `Date(timeIntervalSinceReferenceDate:)` decodes it directly.
 - On recent macOS versions the quarantine DB's URL columns are often NULL —
   agent name, timestamp, and type are the reliable fields.
+- The quarantine DB stores no file path. The linkage goes the other way:
+  quarantined files carry a `com.apple.quarantine` xattr
+  (`flags;hex-timestamp;agent;event-UUID`) whose UUID keys into the DB.
+- macOS purges old DB rows while files keep their xattrs, so DB→file
+  correlation only succeeds for recent events — "file not found" is a normal
+  outcome, not an error.
 - Always invoke `/usr/bin/log` by full path: zsh has a `log` builtin that
   silently shadows it.
-- Much of the XProtect log volume is XPC scheduling chatter; filtering that
-  down to meaningful scan/detection events is the next parsing task.
+- One logical scan run interleaves several processes (XProtect,
+  XProtectPluginService, …), so activity clustering splits on time gaps only,
+  never on process changes.
 
 ## Next ideas
 
-- Filter/collapse XPC noise in the log view; surface only scans and detections
 - `log stream` for live tailing instead of polled `log show`
 - Notifications on new quarantine events (poll DB mtime)
-- `spctl --assess` wrapper for manual file verification
+- Drop-a-file-to-verify: `spctl`/`codesign` verdict for any file, not just
+  quarantine events
 - Proper `.app` bundle + login item

@@ -65,6 +65,84 @@ public struct QuarantineStore: Sendable {
         }
     }
 
+    /// Filtered, keyset-paginated query for browsing the full database.
+    ///
+    /// Pass the timestamp of the last event from the previous page as `before`
+    /// to fetch the next page. Rows with a NULL timestamp are ignored once
+    /// paginating (they cannot be ordered).
+    public func events(
+        matching filter: QuarantineFilter = QuarantineFilter(),
+        before: Date? = nil,
+        limit: Int = 100
+    ) throws -> [QuarantineEvent] {
+        var clauses: [String] = []
+        var values: [SQLValue] = []
+
+        if let agent = filter.agentName {
+            clauses.append("LSQuarantineAgentName = ?")
+            values.append(.text(agent))
+        }
+        if let kind = filter.kind, kind != .unknown {
+            clauses.append("LSQuarantineTypeNumber = ?")
+            values.append(.integer(kind.rawValue))
+        }
+        let search = filter.searchText.trimmingCharacters(in: .whitespaces)
+        if !search.isEmpty {
+            let pattern = "%" + Self.escapeLike(search) + "%"
+            let columns = [
+                "LSQuarantineDataURLString", "LSQuarantineOriginURLString",
+                "LSQuarantineSenderName", "LSQuarantineSenderAddress",
+                "LSQuarantineAgentName",
+            ]
+            clauses.append(
+                "(" + columns.map { "\($0) LIKE ? ESCAPE '\\'" }.joined(separator: " OR ") + ")")
+            values.append(contentsOf: Array(repeating: .text(pattern), count: columns.count))
+        }
+        if let before {
+            clauses.append("LSQuarantineTimeStamp < ?")
+            values.append(.real(before.timeIntervalSinceReferenceDate))
+        }
+
+        var sql = """
+            SELECT LSQuarantineEventIdentifier, LSQuarantineTimeStamp,
+                   LSQuarantineAgentName, LSQuarantineAgentBundleIdentifier,
+                   LSQuarantineDataURLString, LSQuarantineOriginURLString,
+                   LSQuarantineSenderName, LSQuarantineSenderAddress,
+                   LSQuarantineTypeNumber
+            FROM LSQuarantineEvent
+            """
+        if !clauses.isEmpty {
+            sql += " WHERE " + clauses.joined(separator: " AND ")
+        }
+        sql += " ORDER BY LSQuarantineTimeStamp DESC LIMIT ?"
+        values.append(.integer(limit))
+
+        return try withStatement(sql) { statement in
+            bind(values, to: statement)
+            var events: [QuarantineEvent] = []
+            while sqlite3_step(statement) == SQLITE_ROW {
+                events.append(event(from: statement))
+            }
+            return events
+        }
+    }
+
+    /// Distinct downloading-agent names, for filter pickers.
+    public func distinctAgents() throws -> [String] {
+        let sql = """
+            SELECT DISTINCT LSQuarantineAgentName FROM LSQuarantineEvent
+            WHERE LSQuarantineAgentName IS NOT NULL
+            ORDER BY LSQuarantineAgentName COLLATE NOCASE
+            """
+        return try withStatement(sql) { statement in
+            var agents: [String] = []
+            while sqlite3_step(statement) == SQLITE_ROW {
+                if let agent = columnText(statement, 0) { agents.append(agent) }
+            }
+            return agents
+        }
+    }
+
     /// Total number of quarantine events on record.
     public func eventCount() throws -> Int {
         try withStatement("SELECT COUNT(*) FROM LSQuarantineEvent") { statement in
@@ -91,6 +169,37 @@ public struct QuarantineStore: Sendable {
     }
 
     // MARK: - SQLite plumbing
+
+    private enum SQLValue {
+        case text(String)
+        case real(Double)
+        case integer(Int)
+    }
+
+    /// SQLite must copy bound text because our Swift strings are transient.
+    private static let transientDestructor = unsafeBitCast(
+        -1 as Int, to: sqlite3_destructor_type.self)
+
+    private func bind(_ values: [SQLValue], to statement: OpaquePointer) {
+        for (offset, value) in values.enumerated() {
+            let index = Int32(offset + 1)
+            switch value {
+            case .text(let text):
+                sqlite3_bind_text(statement, index, text, -1, Self.transientDestructor)
+            case .real(let double):
+                sqlite3_bind_double(statement, index, double)
+            case .integer(let int):
+                sqlite3_bind_int64(statement, index, Int64(int))
+            }
+        }
+    }
+
+    /// Escapes LIKE wildcards so user input matches literally.
+    private static func escapeLike(_ text: String) -> String {
+        text.replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "%", with: "\\%")
+            .replacingOccurrences(of: "_", with: "\\_")
+    }
 
     private func withStatement<T>(_ sql: String, _ body: (OpaquePointer) throws -> T) throws -> T {
         guard FileManager.default.fileExists(atPath: databaseURL.path) else {

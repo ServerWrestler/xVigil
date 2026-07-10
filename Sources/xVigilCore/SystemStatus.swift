@@ -29,18 +29,10 @@ public struct SystemStatus: Sendable {
     }
 
     private static func readGatekeeperStatus() -> Bool? {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/sbin/spctl")
-        process.arguments = ["--status"]
-        let stdout = Pipe()
-        process.standardOutput = stdout
-        process.standardError = Pipe()
-
-        guard (try? process.run()) != nil else { return nil }
-        let data = stdout.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-
-        guard let output = String(data: data, encoding: .utf8) else { return nil }
+        guard let result = try? Subprocess.run("/usr/sbin/spctl", arguments: ["--status"]) else {
+            return nil
+        }
+        let output = result.stdoutText
         if output.contains("assessments enabled") { return true }
         if output.contains("assessments disabled") { return false }
         return nil

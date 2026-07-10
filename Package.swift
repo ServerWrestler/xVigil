@@ -3,7 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "xVigil",
-    platforms: [.macOS(.v14)],
+    platforms: [.macOS(.v15)],
     targets: [
         // Core: quarantine database access, XProtect log parsing, system status.
         .target(name: "xVigilCore"),

@@ -45,7 +45,7 @@ public struct XProtectLogEntry: Identifiable, Hashable, Sendable {
         return .activity
     }
 
-    public enum Kind: String, Sendable {
+    public enum Kind: String, Sendable, Hashable {
         /// Possible detection or remediation event — the interesting ones.
         case detection
         /// Gatekeeper / syspolicyd assessment of a binary.
@@ -54,5 +54,24 @@ public struct XProtectLogEntry: Identifiable, Hashable, Sendable {
         case scan
         /// Routine service chatter.
         case activity
+
+        /// Higher is more significant; used to summarize activity clusters.
+        public var severityRank: Int {
+            switch self {
+            case .detection: 3
+            case .assessment: 2
+            case .scan: 1
+            case .activity: 0
+            }
+        }
+
+        public var label: String {
+            switch self {
+            case .detection: "Possible detection"
+            case .assessment: "Gatekeeper assessment"
+            case .scan: "Scan activity"
+            case .activity: "Service activity"
+            }
+        }
     }
 }

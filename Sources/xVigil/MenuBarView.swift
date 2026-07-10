@@ -3,6 +3,8 @@ import xVigilCore
 
 struct MenuBarView: View {
     let model: VigilModel
+    let dashboard: DashboardModel
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -97,7 +99,14 @@ struct MenuBarView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 6) {
                         ForEach(model.recentEvents.prefix(10)) { event in
-                            eventRow(event)
+                            Button {
+                                openDashboard(selecting: event)
+                            } label: {
+                                eventRow(event)
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .help("Open in dashboard")
                         }
                     }
                 }
@@ -137,6 +146,11 @@ struct MenuBarView: View {
 
     private var footer: some View {
         HStack {
+            Button("Dashboard…") {
+                openDashboard(selecting: nil)
+            }
+            .font(.caption)
+            Spacer()
             if let lastRefreshed = model.lastRefreshed {
                 Text("Updated \(lastRefreshed, format: .dateTime.hour().minute().second())")
                     .font(.caption2)
@@ -148,5 +162,14 @@ struct MenuBarView: View {
             }
             .font(.caption)
         }
+    }
+
+    private func openDashboard(selecting event: QuarantineEvent?) {
+        if let event {
+            dashboard.select(event)
+        }
+        openWindow(id: "dashboard")
+        // Accessory apps don't come forward on their own.
+        NSApplication.shared.activate()
     }
 }

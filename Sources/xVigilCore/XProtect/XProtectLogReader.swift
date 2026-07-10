@@ -34,37 +34,43 @@ public struct XProtectLogReader: Sendable {
     /// Fetches entries from the last `window` (a `log show --last` value such
     /// as "30m", "2h", or "1d"), newest last.
     public func entries(last window: String = "1h") throws -> [XProtectLogEntry] {
-        let output = try runLog(arguments: [
+        try runAndParse([
             "show",
             "--last", window,
             "--style", "ndjson",
             "--predicate", predicate,
         ])
-        return XProtectLogParser.parse(ndjson: output)
     }
 
-    private func runLog(arguments: [String]) throws -> String {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/log")
-        process.arguments = arguments
+    /// Fetches entries in an absolute time range — used to pull log context
+    /// around a quarantine event. Returns an empty array when the unified log
+    /// archive no longer reaches back that far.
+    public func entries(from start: Date, to end: Date) throws -> [XProtectLogEntry] {
+        try runAndParse([
+            "show",
+            "--start", Self.logDateFormatter.string(from: start),
+            "--end", Self.logDateFormatter.string(from: end),
+            "--style", "ndjson",
+            "--predicate", predicate,
+        ])
+    }
 
-        let stdout = Pipe()
-        let stderr = Pipe()
-        process.standardOutput = stdout
-        process.standardError = stderr
+    /// `log show` accepts "YYYY-MM-DD HH:MM:SS" in local time.
+    private static let logDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        return formatter
+    }()
 
-        try process.run()
-        // Read before waiting so a large result can't deadlock on a full pipe.
-        let outputData = stdout.fileHandleForReading.readDataToEndOfFile()
-        let errorData = stderr.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-
-        guard process.terminationStatus == 0 else {
+    private func runAndParse(_ arguments: [String]) throws -> [XProtectLogEntry] {
+        // Full path matters: zsh has a `log` builtin, and we never want to
+        // depend on PATH resolution anyway.
+        let result = try Subprocess.run("/usr/bin/log", arguments: arguments)
+        guard result.status == 0 else {
             throw XProtectLogReaderError.logCommandFailed(
-                status: process.terminationStatus,
-                stderr: String(data: errorData, encoding: .utf8) ?? ""
-            )
+                status: result.status, stderr: result.stderrText)
         }
-        return String(data: outputData, encoding: .utf8) ?? ""
+        return XProtectLogParser.parse(ndjson: result.stdoutText)
     }
 }

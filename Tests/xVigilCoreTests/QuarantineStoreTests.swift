@@ -34,14 +34,14 @@ private func makeFixtureDatabase() throws -> URL {
         INSERT INTO LSQuarantineEvent
             (LSQuarantineEventIdentifier, LSQuarantineTimeStamp, LSQuarantineAgentName,
              LSQuarantineAgentBundleIdentifier, LSQuarantineDataURLString,
-             LSQuarantineOriginURLString, LSQuarantineTypeNumber)
+             LSQuarantineOriginURLString, LSQuarantineSenderName, LSQuarantineTypeNumber)
         VALUES
             ('AAAA-1', 800000000.0, 'Chrome', 'com.google.Chrome',
-             'https://example.com/tool.dmg', 'https://example.com/downloads', 0),
+             'https://example.com/tool.dmg', 'https://example.com/downloads', NULL, 0),
             ('AAAA-2', 800000100.0, 'Messages', 'com.apple.MobileSMS',
-             NULL, NULL, 3),
+             NULL, NULL, 'Jane Doe', 3),
             ('AAAA-3', 700000000.0, 'Safari', 'com.apple.Safari',
-             'https://old.example.com/a.zip', NULL, 0);
+             'https://old.example.com/a.zip', NULL, NULL, 0);
         """
     #expect(sqlite3_exec(db, rows, nil, nil, nil) == SQLITE_OK)
     return url
@@ -95,6 +95,54 @@ private func makeFixtureDatabase() throws -> URL {
         #expect(throws: QuarantineStoreError.self) {
             try store.recentEvents()
         }
+    }
+
+    @Test func filtersByAgent() throws {
+        let store = QuarantineStore(databaseURL: try makeFixtureDatabase())
+        let events = try store.events(matching: QuarantineFilter(agentName: "Chrome"))
+        #expect(events.map(\.id) == ["AAAA-1"])
+    }
+
+    @Test func filtersByKind() throws {
+        let store = QuarantineStore(databaseURL: try makeFixtureDatabase())
+        let downloads = try store.events(matching: QuarantineFilter(kind: .webDownload))
+        #expect(downloads.map(\.id) == ["AAAA-1", "AAAA-3"])
+    }
+
+    @Test func searchesAcrossColumns() throws {
+        let store = QuarantineStore(databaseURL: try makeFixtureDatabase())
+
+        let byURL = try store.events(matching: QuarantineFilter(searchText: "old.example"))
+        #expect(byURL.map(\.id) == ["AAAA-3"])
+
+        let bySender = try store.events(matching: QuarantineFilter(searchText: "jane"))
+        #expect(bySender.map(\.id) == ["AAAA-2"])
+
+        // LIKE wildcards in user input must match literally, not as wildcards.
+        let literalPercent = try store.events(matching: QuarantineFilter(searchText: "%"))
+        #expect(literalPercent.isEmpty)
+    }
+
+    @Test func combinesFilters() throws {
+        let store = QuarantineStore(databaseURL: try makeFixtureDatabase())
+        let events = try store.events(
+            matching: QuarantineFilter(agentName: "Safari", kind: .webDownload))
+        #expect(events.map(\.id) == ["AAAA-3"])
+    }
+
+    @Test func paginatesWithKeyset() throws {
+        let store = QuarantineStore(databaseURL: try makeFixtureDatabase())
+
+        let firstPage = try store.events(limit: 2)
+        #expect(firstPage.map(\.id) == ["AAAA-2", "AAAA-1"])
+
+        let secondPage = try store.events(before: firstPage.last?.timestamp, limit: 2)
+        #expect(secondPage.map(\.id) == ["AAAA-3"])
+    }
+
+    @Test func listsDistinctAgents() throws {
+        let store = QuarantineStore(databaseURL: try makeFixtureDatabase())
+        #expect(try store.distinctAgents() == ["Chrome", "Messages", "Safari"])
     }
 
     @Test func nullColumnsBecomeNil() throws {
