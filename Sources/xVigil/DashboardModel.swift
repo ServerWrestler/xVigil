@@ -65,6 +65,14 @@ final class DashboardModel {
     private let store = QuarantineStore()
     private var searchDebounce: Task<Void, Never>?
 
+    init() {
+        // Headless self-check inside the real GUI process:
+        //   XVIGIL_SMOKE=1 .build/debug/xVigil
+        if ProcessInfo.processInfo.environment["XVIGIL_SMOKE"] != nil {
+            Task { await runSmokeTest() }
+        }
+    }
+
     // MARK: - Quarantine actions
 
     func loadInitialIfNeeded() {
@@ -153,10 +161,8 @@ final class DashboardModel {
         enrichments[event.id] = .loading
         let enricher = EventEnricher()
         Task {
-            let enrichment = await Task.detached(priority: .utility) {
-                enricher.enrich(event)
-            }.value
-            self.enrichments[event.id] = .loaded(enrichment)
+            // enrich() parks its blocking work on GCD itself.
+            self.enrichments[event.id] = .loaded(await enricher.enrich(event))
         }
     }
 
@@ -166,11 +172,9 @@ final class DashboardModel {
         let reader = XProtectLogReader()
         Task {
             do {
-                let entries = try await Task.detached(priority: .utility) {
-                    try reader.entries(
-                        from: timestamp.addingTimeInterval(-window),
-                        to: timestamp.addingTimeInterval(window))
-                }.value
+                let entries = try await reader.entries(
+                    from: timestamp.addingTimeInterval(-window),
+                    to: timestamp.addingTimeInterval(window))
                 self.relatedLogs[event.id] = .loaded(entries)
             } catch {
                 self.relatedLogs[event.id] = .failed(error.localizedDescription)
@@ -192,9 +196,7 @@ final class DashboardModel {
         let window = activityWindow
         Task {
             do {
-                let entries = try await Task.detached(priority: .userInitiated) {
-                    try reader.entries(last: window)
-                }.value
+                let entries = try await reader.entries(last: window)
                 guard window == self.activityWindow else { return }
                 // Newest activity first.
                 self.activities = XProtectActivityGrouper.group(entries).reversed()
@@ -216,5 +218,63 @@ final class DashboardModel {
 
     private var currentFilter: QuarantineFilter {
         QuarantineFilter(agentName: agentFilter, kind: kindFilter, searchText: searchText)
+    }
+
+    // MARK: - Headless smoke test (XVIGIL_SMOKE=1)
+
+    /// Exercises the exact model paths the detail pane uses, inside the real
+    /// NSApplication process, then exits. Exists because the async plumbing
+    /// (cooperative pool vs GCD) behaves differently in a GUI app than in
+    /// the CLI harness.
+    private func runSmokeTest() async {
+        let started = Date()
+        func stamp(_ message: String) {
+            print(String(format: "[smoke %5.1fs] %@", Date().timeIntervalSince(started), message))
+        }
+
+        stamp("starting in-app smoke test")
+        guard let event = try? store.recentEvents(limit: 1).first else {
+            stamp("FAIL: quarantine database empty or unreadable")
+            exit(1)
+        }
+        stamp("event: \(event.agentName ?? "?") \(event.id)")
+
+        select(event)
+        enrichIfNeeded(event)
+        loadRelatedLogsIfNeeded(for: event)
+        loadActivities()
+
+        var enrichDone = false
+        var logsDone = false
+        var activitiesDone = false
+        while Date().timeIntervalSince(started) < 300 {
+            try? await Task.sleep(for: .seconds(2))
+            if !enrichDone, case .loaded(let enrichment)? = enrichments[event.id] {
+                enrichDone = true
+                stamp("enrichment finished: \(enrichment.fileStatus)")
+            }
+            if !logsDone {
+                switch relatedLogs[event.id] {
+                case .loaded(let entries)?:
+                    logsDone = true
+                    stamp("related logs finished: \(entries.count) entries")
+                case .failed(let message)?:
+                    logsDone = true
+                    stamp("related logs failed (acceptable, not a hang): \(message)")
+                default: break
+                }
+            }
+            if !activitiesDone, !activitiesLoading {
+                activitiesDone = true
+                stamp("activities finished: \(activities.count) clusters"
+                    + (activitiesError.map { " (error: \($0))" } ?? ""))
+            }
+            if enrichDone && logsDone && activitiesDone {
+                stamp("SMOKE PASS")
+                exit(0)
+            }
+        }
+        stamp("SMOKE TIMEOUT — enrich:\(enrichDone) logs:\(logsDone) activities:\(activitiesDone)")
+        exit(1)
     }
 }

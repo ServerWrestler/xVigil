@@ -18,7 +18,7 @@ struct MenuBarView: View {
         }
         .padding(12)
         .frame(width: 340)
-        .onAppear { model.refresh() }
+        .onAppear { Task { model.refresh() } }
     }
 
     private var header: some View {

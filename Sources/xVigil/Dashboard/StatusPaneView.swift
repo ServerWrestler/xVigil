@@ -26,7 +26,7 @@ struct StatusPaneView: View {
         }
         .formStyle(.grouped)
         .onAppear {
-            if model.status == nil { model.refreshStatus() }
+            Task { if model.status == nil { model.refreshStatus() } }
         }
     }
 

@@ -54,8 +54,8 @@ func runAgents() throws {
     }
 }
 
-func runXProtectLog(window: String) throws {
-    let entries = try XProtectLogReader().entries(last: window)
+func runXProtectLog(window: String) async throws {
+    let entries = try await XProtectLogReader().entries(last: window)
     print("Parsed \(entries.count) entries from the last \(window)\n")
     for entry in entries {
         let when = entry.date.map { $0.formatted(timestampFormat) } ?? "?"
@@ -69,8 +69,8 @@ func runXProtectLog(window: String) throws {
     }
 }
 
-func runActivities(window: String) throws {
-    let entries = try XProtectLogReader().entries(last: window)
+func runActivities(window: String) async throws {
+    let entries = try await XProtectLogReader().entries(last: window)
     let activities = XProtectActivityGrouper.group(entries)
     print("\(entries.count) entries → \(activities.count) activities in the last \(window)\n")
     for activity in activities {
@@ -83,7 +83,7 @@ func runActivities(window: String) throws {
     }
 }
 
-func runEnrich(eventID: String?) throws {
+func runEnrich(eventID: String?) async throws {
     let store = QuarantineStore()
     let event: QuarantineEvent
     if let eventID {
@@ -105,7 +105,7 @@ func runEnrich(eventID: String?) throws {
     print("  \(event.agentName ?? "?") — \(event.kind.label) — \(when)")
     print("  Searching for file (this walks Downloads/Desktop/Documents/Applications)…")
 
-    let enrichment = EventEnricher().enrich(event)
+    let enrichment = await EventEnricher().enrich(event)
     switch enrichment.fileStatus {
     case .notFound:
         print("  File: not found (likely deleted — normal for older events)")
@@ -147,12 +147,12 @@ do {
         try runAgents()
     case "xprotect-log":
         let window = arguments.dropFirst().first ?? "1h"
-        try runXProtectLog(window: window)
+        try await runXProtectLog(window: window)
     case "activities":
         let window = arguments.dropFirst().first ?? "6h"
-        try runActivities(window: window)
+        try await runActivities(window: window)
     case "enrich":
-        try runEnrich(eventID: arguments.dropFirst().first)
+        try await runEnrich(eventID: arguments.dropFirst().first)
     default:
         printUsageAndExit()
     }

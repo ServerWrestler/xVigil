@@ -47,8 +47,21 @@ public struct EventEnricher: Sendable {
         self.locator = locator
     }
 
-    /// Slow (filesystem walk plus subprocess calls) — call off the main thread.
-    public func enrich(_ event: QuarantineEvent) -> EventEnrichment {
+    /// Slow (filesystem walk plus subprocess calls). The blocking work runs
+    /// on a GCD thread so it never occupies the cooperative pool.
+    public func enrich(_ event: QuarantineEvent) async -> EventEnrichment {
+        let locator = self.locator
+        return await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .utility).async {
+                continuation.resume(returning: Self.enrichBlocking(event, locator: locator))
+            }
+        }
+    }
+
+    static func enrichBlocking(
+        _ event: QuarantineEvent,
+        locator: QuarantineFileLocator
+    ) -> EventEnrichment {
         guard let url = locator.locate(eventID: event.id) else {
             return EventEnrichment(fileStatus: .notFound, assessment: nil, signature: nil)
         }
@@ -61,7 +74,7 @@ public struct EventEnricher: Sendable {
 
     // MARK: - Gatekeeper (spctl)
 
-    private func assess(_ url: URL) -> GatekeeperAssessment? {
+    private static func assess(_ url: URL) -> GatekeeperAssessment? {
         let arguments: [String]
         switch url.pathExtension.lowercased() {
         case "app":
@@ -77,9 +90,9 @@ public struct EventEnricher: Sendable {
             return nil  // Gatekeeper assessment only applies to app/pkg/dmg.
         }
 
-        guard let result = try? Subprocess.run("/usr/sbin/spctl", arguments: arguments) else {
-            return nil
-        }
+        guard let result = try? Subprocess.run(
+            "/usr/sbin/spctl", arguments: arguments, timeout: 30)
+        else { return nil }
         return GatekeeperAssessment(
             accepted: result.status == 0,
             detail: Self.parseSpctlDetail(result.combinedText)
@@ -101,9 +114,9 @@ public struct EventEnricher: Sendable {
 
     // MARK: - Code signature (codesign)
 
-    private func signature(of url: URL) -> CodeSignature {
+    private static func signature(of url: URL) -> CodeSignature {
         guard let result = try? Subprocess.run(
-            "/usr/bin/codesign", arguments: ["-dv", "--verbose=2", url.path])
+            "/usr/bin/codesign", arguments: ["-dv", "--verbose=2", url.path], timeout: 15)
         else {
             return CodeSignature(status: .invalid, authorities: [], problem: "codesign failed to run")
         }

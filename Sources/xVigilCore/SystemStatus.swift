@@ -29,7 +29,7 @@ public struct SystemStatus: Sendable {
     }
 
     private static func readGatekeeperStatus() -> Bool? {
-        guard let result = try? Subprocess.run("/usr/sbin/spctl", arguments: ["--status"]) else {
+        guard let result = try? Subprocess.run("/usr/sbin/spctl", arguments: ["--status"], timeout: 10) else {
             return nil
         }
         let output = result.stdoutText

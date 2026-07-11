@@ -35,13 +35,17 @@ struct ActivityListView: View {
                 ForEach(model.activities) { activity in
                     row(activity).tag(activity.id)
                 }
-                if !model.activitiesLoading && model.activities.isEmpty {
+                if model.activitiesLoading && model.activities.isEmpty {
+                    Text("Querying the unified log — long windows can take a minute…")
+                        .foregroundStyle(.secondary)
+                        .font(.caption)
+                } else if !model.activitiesLoading && model.activities.isEmpty {
                     Text("No XProtect activity in this window.")
                         .foregroundStyle(.secondary)
                 }
             }
         }
-        .onAppear { model.loadActivitiesIfNeeded() }
+        .onAppear { Task { model.loadActivitiesIfNeeded() } }
     }
 
     private func row(_ activity: XProtectActivity) -> some View {

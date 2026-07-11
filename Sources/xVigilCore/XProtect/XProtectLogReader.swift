@@ -32,27 +32,40 @@ public struct XProtectLogReader: Sendable {
     }
 
     /// Fetches entries from the last `window` (a `log show --last` value such
-    /// as "30m", "2h", or "1d"), newest last.
-    public func entries(last window: String = "1h") throws -> [XProtectLogEntry] {
-        try runAndParse([
-            "show",
-            "--last", window,
-            "--style", "ndjson",
-            "--predicate", predicate,
-        ])
+    /// as "30m", "2h", or "1d"), newest last. Archive scans are slow — expect
+    /// tens of seconds for long windows; the timeout converts a runaway query
+    /// into an error instead of an eternal spinner.
+    public func entries(
+        last window: String = "1h",
+        timeout: TimeInterval = 240
+    ) async throws -> [XProtectLogEntry] {
+        try await runAndParse(
+            [
+                "show",
+                "--last", window,
+                "--style", "ndjson",
+                "--predicate", predicate,
+            ],
+            timeout: timeout)
     }
 
     /// Fetches entries in an absolute time range — used to pull log context
     /// around a quarantine event. Returns an empty array when the unified log
     /// archive no longer reaches back that far.
-    public func entries(from start: Date, to end: Date) throws -> [XProtectLogEntry] {
-        try runAndParse([
-            "show",
-            "--start", Self.logDateFormatter.string(from: start),
-            "--end", Self.logDateFormatter.string(from: end),
-            "--style", "ndjson",
-            "--predicate", predicate,
-        ])
+    public func entries(
+        from start: Date,
+        to end: Date,
+        timeout: TimeInterval = 120
+    ) async throws -> [XProtectLogEntry] {
+        try await runAndParse(
+            [
+                "show",
+                "--start", Self.logDateFormatter.string(from: start),
+                "--end", Self.logDateFormatter.string(from: end),
+                "--style", "ndjson",
+                "--predicate", predicate,
+            ],
+            timeout: timeout)
     }
 
     /// `log show` accepts "YYYY-MM-DD HH:MM:SS" in local time.
@@ -63,10 +76,14 @@ public struct XProtectLogReader: Sendable {
         return formatter
     }()
 
-    private func runAndParse(_ arguments: [String]) throws -> [XProtectLogEntry] {
+    private func runAndParse(
+        _ arguments: [String],
+        timeout: TimeInterval
+    ) async throws -> [XProtectLogEntry] {
         // Full path matters: zsh has a `log` builtin, and we never want to
         // depend on PATH resolution anyway.
-        let result = try Subprocess.run("/usr/bin/log", arguments: arguments)
+        let result = try await Subprocess.runAsync(
+            "/usr/bin/log", arguments: arguments, timeout: timeout)
         guard result.status == 0 else {
             throw XProtectLogReaderError.logCommandFailed(
                 status: result.status, stderr: result.stderrText)

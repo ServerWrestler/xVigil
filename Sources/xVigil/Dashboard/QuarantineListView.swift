@@ -10,7 +10,9 @@ struct QuarantineListView: View {
             Divider()
             list
         }
-        .onAppear { model.loadInitialIfNeeded() }
+        // Deferred: mutating list-driving state synchronously inside
+        // onAppear re-enters NSTableView's update pass (reentrancy warning).
+        .onAppear { Task { model.loadInitialIfNeeded() } }
     }
 
     private var filterBar: some View {
@@ -50,7 +52,9 @@ struct QuarantineListView: View {
                 row(event)
                     .tag(event.id)
                     .onAppear {
-                        if event.id == model.events.last?.id { model.loadMore() }
+                        if event.id == model.events.last?.id {
+                            Task { model.loadMore() }
+                        }
                     }
             }
             if model.isLoading {

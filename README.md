@@ -1,4 +1,4 @@
-# xVigil
+# 🛡️ xVigil
 
 A macOS menu bar app that surfaces what XProtect and Gatekeeper are quietly doing:
 quarantine events, protection status, and XProtect activity from the unified log.
@@ -28,6 +28,18 @@ Early prototype. Working so far:
 - **Activity grouping** (`XProtectActivityGrouper`) — clusters the raw entry
   stream by time gap into logical activities (a 12h window collapses from ~28k
   entries to ~15 activities), titled by the dominant process.
+
+## Install (beta)
+
+Grab `xVigil-x.y.z.zip` from [Releases](https://github.com/ServerWrestler/xVigil/releases),
+unzip, and drag `xVigil.app` to Applications. The beta is ad-hoc signed, so on
+first launch macOS will warn — right-click the app and choose **Open** (yes,
+the Gatekeeper-visibility app makes you talk to Gatekeeper; consider it a
+product demo). Or build it yourself:
+
+```sh
+scripts/make-app.sh 0.1.0   # produces dist/xVigil.app and a zip
+```
 
 ## Setup
 

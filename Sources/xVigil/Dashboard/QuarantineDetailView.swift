@@ -152,7 +152,7 @@ struct QuarantineDetailView: View {
                 case nil, .loading:
                     HStack(spacing: 8) {
                         ProgressView().controlSize(.small)
-                        Text("Querying the unified log…")
+                        Text("Querying the unified log — can take a minute for older events…")
                             .foregroundStyle(.secondary)
                     }
                 case .failed(let message):
