@@ -101,4 +101,58 @@ swift run xvigil-cli enrich         # locate file + verdicts for newest event
 - Notifications on new quarantine events (poll DB mtime)
 - Drop-a-file-to-verify: `spctl`/`codesign` verdict for any file, not just
   quarantine events
-- Proper `.app` bundle + login item
+- Login item support
+- Pluggable on-demand scanning (spec below)
+
+### Spec: pluggable on-demand scanning (user-defined engine)
+
+Add active, report-only scanning of user-specified paths (e.g. `/usr/local`,
+Homebrew Cellar) via a pluggable engine backend. Fills the gap that XProtect
+never proactively scans these locations. First backend: ClamAV.
+
+**Architecture** — keep `xVigilCore` pure-read; isolate scanning behind a
+protocol:
+
+```swift
+protocol ScanEngine {
+    var id: String { get }            // "clamav"
+    var displayName: String { get }
+    func availability() async -> EngineAvailability   // installed? daemon up? db age
+    func scan(paths: [URL], options: ScanOptions) -> AsyncStream<ScanEvent>
+}
+```
+
+`ScanEvent`: `.fileScanned(URL)`, `.threatFound(path:signature:)`,
+`.progress(...)`, `.finished(summary:)`. UI stays engine-agnostic; mirrors the
+existing streamed-typed-event pattern. Future backends (rkhunter, YARA) plug
+in without touching views.
+
+**ClamAV backend requirements:**
+
+- Prefer `clamdscan` (daemon) over `clamscan` — avoids ~200MB DB reload per
+  run. Detect which is available; fall back gracefully.
+- Detect, don't bundle. Resolve via `which clamdscan` / `brew --prefix`.
+  Bundling drags in GPL + a signature-update pipeline. Detection keeps
+  licensing clean and the "user-defined engine" framing honest.
+- Use `clamdscan --fdpass` to avoid daemon file-permission failures on paths
+  clamd's user can't read.
+- Surface signature DB age prominently in `availability()` and warn in UI if
+  stale (`freshclam` neglect → false confidence). On-brand: this app exists
+  to distrust silent security.
+- Never auto-quarantine or delete. Report only; offer "reveal in Finder."
+  Silent action would betray the observability ethos.
+
+**Distribution note:** shelling out to `clamdscan` + reading arbitrary paths
+is incompatible with App Sandbox. Confirms the Developer-ID-signed,
+unsandboxed path (already required for `spctl`/`codesign`/log access).
+
+**Scope guard:** ship on-demand only. Scheduled scans are a reasonable
+follow-up. File-on-write monitoring is explicitly out of scope — it requires
+an Endpoint Security System Extension and the restricted
+`com.apple.developer.endpoint-security.client` entitlement (Apple approval).
+Do not let on-demand scanning silently grow into that without a deliberate
+decision.
+
+**First slice:** `ScanEngine` protocol + `ClamAVEngine` (availability
+detection + `clamdscan --fdpass` streaming) + a new dashboard section beside
+XProtect activity showing streamed results and DB-age warning.
