@@ -10,6 +10,12 @@ Early prototype. Working so far:
 - **Menu bar app** (`swift run xVigil`) — SwiftUI `MenuBarExtra` showing Gatekeeper
   status, XProtect definition/Remediator versions, and recent quarantine events.
   Clicking an event opens it in the dashboard.
+- **Loud detections** — a background monitor sweeps XProtect logs; any finding
+  turns the menu bar icon into a red warning shield, banners the popover, and
+  lands in a Detections dashboard section.
+- **On-demand scanning** — pluggable `ScanEngine` with a ClamAV backend:
+  detects a Homebrew install, prefers the daemon, warns on stale signatures,
+  streams results live. Report-only — never quarantines or deletes.
 - **Dashboard window** — `NavigationSplitView` with three sections: quarantine
   events (searchable, filterable by agent/type, keyset-paginated), XProtect
   activity (log entries clustered into scan runs), and protection status.
@@ -68,6 +74,8 @@ swift run xvigil-cli agents         # event counts by downloading app
 swift run xvigil-cli xprotect-log 2h
 swift run xvigil-cli activities 12h # log entries grouped into activities
 swift run xvigil-cli enrich         # locate file + verdicts for newest event
+swift run xvigil-cli engine         # ClamAV availability + signature age
+swift run xvigil-cli scan ~/Downloads   # on-demand scan (report-only)
 ```
 
 ## Layout
@@ -98,8 +106,9 @@ swift run xvigil-cli enrich         # locate file + verdicts for newest event
 ## Next ideas
 
 - `log stream` for live tailing instead of polled `log show`
-- Notifications on new quarantine events (poll DB mtime)
+- Notifications on new quarantine events and new detections
 - Drop-a-file-to-verify: `spctl`/`codesign` verdict for any file, not just
   quarantine events
 - Login item support
-- Pluggable on-demand scanning
+- Scheduled scans and more engines (YARA, rkhunter); file-on-write monitoring
+  stays out of scope (needs an Endpoint Security entitlement)
