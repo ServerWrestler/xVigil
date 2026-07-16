@@ -1,22 +1,22 @@
 import Foundation
 import os
 
-struct SubprocessResult {
-    let status: Int32
-    let stdout: Data
-    let stderr: Data
+public struct SubprocessResult: Sendable {
+    public let status: Int32
+    public let stdout: Data
+    public let stderr: Data
 
-    var stdoutText: String { String(data: stdout, encoding: .utf8) ?? "" }
-    var stderrText: String { String(data: stderr, encoding: .utf8) ?? "" }
+    public var stdoutText: String { String(data: stdout, encoding: .utf8) ?? "" }
+    public var stderrText: String { String(data: stderr, encoding: .utf8) ?? "" }
     /// stdout and stderr combined — some tools (spctl, codesign) split
     /// their report across both.
-    var combinedText: String { stdoutText + stderrText }
+    public var combinedText: String { stdoutText + stderrText }
 }
 
-enum SubprocessError: Error, LocalizedError {
+public enum SubprocessError: Error, LocalizedError {
     case timedOut(command: String, seconds: TimeInterval)
 
-    var errorDescription: String? {
+    public var errorDescription: String? {
         switch self {
         case .timedOut(let command, let seconds):
             "\(command) did not finish within \(Int(seconds))s and was terminated"
@@ -50,11 +50,82 @@ private final class ProcessBox: @unchecked Sendable {
     init(_ process: Process) { self.process = process }
 }
 
-enum Subprocess {
+public enum SubprocessStreamEvent: Sendable {
+    case line(String)
+    case exited(status: Int32)
+}
+
+/// Accumulates pipe data into lines and forwards them to an AsyncStream.
+/// EOF and process exit race each other; the last of the two finishes the
+/// stream so no output is dropped.
+private final class LineStreamer: @unchecked Sendable {
+    private let lock = NSLock()
+    private var buffer = Data()
+    private var sawEOF = false
+    private var exitStatus: Int32?
+    private var continuation: AsyncStream<SubprocessStreamEvent>.Continuation?
+
+    func attach(_ continuation: AsyncStream<SubprocessStreamEvent>.Continuation) {
+        lock.lock()
+        self.continuation = continuation
+        lock.unlock()
+    }
+
+    func consume(_ data: Data) {
+        lock.lock()
+        buffer.append(data)
+        var lines: [String] = []
+        while let newline = buffer.firstIndex(of: 0x0A) {
+            let lineData = buffer[buffer.startIndex..<newline]
+            lines.append(Self.decode(lineData))
+            buffer.removeSubrange(buffer.startIndex...newline)
+        }
+        let continuation = self.continuation
+        lock.unlock()
+        for line in lines { continuation?.yield(.line(line)) }
+    }
+
+    func eofReached() {
+        lock.lock()
+        sawEOF = true
+        let remainder = buffer.isEmpty ? nil : Self.decode(buffer)
+        buffer.removeAll()
+        lock.unlock()
+        if let remainder { continuation?.yield(.line(remainder)) }
+        finishIfComplete()
+    }
+
+    func processExited(status: Int32) {
+        lock.lock()
+        exitStatus = status
+        lock.unlock()
+        finishIfComplete()
+    }
+
+    private func finishIfComplete() {
+        lock.lock()
+        guard sawEOF, let status = exitStatus, let continuation else {
+            lock.unlock()
+            return
+        }
+        self.continuation = nil
+        lock.unlock()
+        continuation.yield(.exited(status: status))
+        continuation.finish()
+    }
+
+    private static func decode(_ data: Data) -> String {
+        var line = String(decoding: data, as: UTF8.self)
+        if line.hasSuffix("\r") { line.removeLast() }
+        return line
+    }
+}
+
+public enum Subprocess {
     /// Runs `executablePath` synchronously. Blocks the calling thread — never
     /// call from the main thread or a Swift Concurrency cooperative thread;
     /// use `runAsync` from async contexts.
-    static func run(
+    public static func run(
         _ executablePath: String,
         arguments: [String],
         timeout: TimeInterval? = nil
@@ -100,10 +171,56 @@ enum Subprocess {
         return SubprocessResult(status: process.terminationStatus, stdout: stdout, stderr: stderr)
     }
 
+    /// Streams stdout+stderr line by line as the process produces them —
+    /// for long-running work (scans) that should render results live rather
+    /// than after completion. The stream ends with `.exited(status:)`.
+    /// Cancelling the consuming task terminates the process.
+    public static func streamLines(
+        _ executablePath: String,
+        arguments: [String]
+    ) throws -> AsyncStream<SubprocessStreamEvent> {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: executablePath)
+        process.arguments = arguments
+
+        // One pipe for both: scan tools interleave findings and warnings,
+        // and per-line ordering is all the consumer needs.
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = pipe
+
+        let streamer = LineStreamer()
+        let box = ProcessBox(process)
+        let stream = AsyncStream<SubprocessStreamEvent>(bufferingPolicy: .unbounded) { continuation in
+            streamer.attach(continuation)
+            continuation.onTermination = { reason in
+                if case .cancelled = reason, box.process.isRunning {
+                    box.process.terminate()
+                }
+            }
+        }
+
+        pipe.fileHandleForReading.readabilityHandler = { handle in
+            let data = handle.availableData
+            if data.isEmpty {
+                handle.readabilityHandler = nil
+                streamer.eofReached()
+            } else {
+                streamer.consume(data)
+            }
+        }
+        process.terminationHandler = { finished in
+            streamer.processExited(status: finished.terminationStatus)
+        }
+
+        try process.run()
+        return stream
+    }
+
     /// Async variant that parks the blocking wait on a GCD thread. Long `log
     /// show` queries must never occupy the cooperative pool: its width is the
     /// CPU core count, and a few blocked threads starve every Task in the app.
-    static func runAsync(
+    public static func runAsync(
         _ executablePath: String,
         arguments: [String],
         timeout: TimeInterval? = nil

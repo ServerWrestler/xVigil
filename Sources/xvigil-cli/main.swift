@@ -1,5 +1,6 @@
 import Foundation
 import xVigilCore
+import xVigilScan
 
 // Prototype harness for the data layer. Usage:
 //   swift run xvigil-cli status
@@ -20,6 +21,8 @@ func printUsageAndExit() -> Never {
           xprotect-log [window]  Parsed XProtect/Gatekeeper unified log entries (default 1h)
           activities [window]    Log entries grouped into activities (default 6h)
           enrich [event-id]      Locate file + Gatekeeper/codesign verdict (default: newest event)
+          engine                 ClamAV availability (installed? daemon? signature age)
+          scan <path> [path…]    On-demand ClamAV scan (report-only)
         """)
     exit(64)
 }
@@ -133,6 +136,43 @@ func runEnrich(eventID: String?) async throws {
     }
 }
 
+func runEngine() async {
+    let availability = await ClamAVEngine().availability()
+    print("Installed:      \(availability.installed ? "yes" : "no")")
+    print("Daemon running: \(availability.daemonRunning ? "yes" : "no")")
+    if let scanner = availability.scannerPath { print("Scanner:        \(scanner)") }
+    if let age = availability.signatureAge {
+        print(String(format: "Signature age:  %.1f days%@", age / 86_400,
+            availability.signaturesStale ? "  ** STALE — run freshclam **" : ""))
+    } else {
+        print("Signature age:  unknown")
+    }
+    print(availability.detail)
+}
+
+func runScan(paths: [String]) async {
+    let urls = paths.map { URL(fileURLWithPath: $0) }
+    for await event in ClamAVEngine().scan(paths: urls, options: ScanOptions()) {
+        switch event {
+        case .started(let scanner, let paths):
+            print("Scanning \(paths.joined(separator: ", ")) with \(scanner)")
+        case .threatFound(let path, let signature):
+            print("!! FOUND \(signature)")
+            print("   \(path)")
+        case .progress(let message):
+            print("   \(message)")
+        case .finished(let summary):
+            if let errorMessage = summary.errorMessage {
+                print("Scan failed: \(errorMessage)")
+            } else {
+                print(String(format: "Done in %.0fs — %d threat(s)%@ (report only)",
+                    summary.duration, summary.infectedCount,
+                    summary.scannedCount.map { ", \($0) files" } ?? ""))
+            }
+        }
+    }
+}
+
 let arguments = CommandLine.arguments.dropFirst()
 guard let command = arguments.first else { printUsageAndExit() }
 
@@ -153,6 +193,12 @@ do {
         try await runActivities(window: window)
     case "enrich":
         try await runEnrich(eventID: arguments.dropFirst().first)
+    case "engine":
+        await runEngine()
+    case "scan":
+        let paths = Array(arguments.dropFirst())
+        if paths.isEmpty { printUsageAndExit() }
+        await runScan(paths: paths)
     default:
         printUsageAndExit()
     }

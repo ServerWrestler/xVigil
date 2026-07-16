@@ -4,11 +4,15 @@ import xVigilCore
 struct MenuBarView: View {
     let model: VigilModel
     let dashboard: DashboardModel
+    let monitor: DetectionMonitor
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             header
+            if monitor.count > 0 {
+                detectionsBanner
+            }
             Divider()
             statusSection
             Divider()
@@ -41,6 +45,27 @@ struct MenuBarView: View {
                 .help("Refresh")
             }
         }
+    }
+
+    /// The loud part: a detection is never just a badge buried in a list.
+    private var detectionsBanner: some View {
+        Button {
+            dashboard.section = .detections
+            openWindow(id: "dashboard")
+            NSApplication.shared.activate()
+        } label: {
+            HStack {
+                Image(systemName: "exclamationmark.shield.fill")
+                Text("\(monitor.count) possible detection\(monitor.count == 1 ? "" : "s") — click to review")
+                    .font(.callout.weight(.semibold))
+                Spacer()
+            }
+            .padding(8)
+            .background(.red.opacity(0.15), in: RoundedRectangle(cornerRadius: 6))
+            .foregroundStyle(.red)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     private var statusSection: some View {

@@ -30,20 +30,7 @@ public struct XProtectLogEntry: Identifiable, Hashable, Sendable {
     }
 
     /// Rough classification of what this entry represents.
-    public var kind: Kind {
-        let lowered = message.lowercased()
-        if lowered.contains("malware") || lowered.contains("detected")
-            || lowered.contains("remediat") || lowered.contains("yara") {
-            return .detection
-        }
-        if lowered.contains("assessment") || lowered.contains("gatekeeper") {
-            return .assessment
-        }
-        if lowered.contains("scan") {
-            return .scan
-        }
-        return .activity
-    }
+    public var kind: Kind { Kind.classify(message) }
 
     public enum Kind: String, Sendable, Hashable {
         /// Possible detection or remediation event — the interesting ones.
@@ -72,6 +59,33 @@ public struct XProtectLogEntry: Identifiable, Hashable, Sendable {
             case .scan: "Scan activity"
             case .activity: "Service activity"
             }
+        }
+
+        /// Threat-shaped language. Requires an actual threat noun or a
+        /// "threats found"-style verb phrase — a bare "detected" matches too
+        /// much routine chatter ("no new updates detected", …).
+        nonisolated(unsafe) private static let threatPattern =
+            /\b(malware|trojan|adware|spyware|virus|infected|infection|yara)\b|threats? (found|detected)|remediation (succeeded|performed|complete)|detected xprotect\./
+
+        /// Phrases that flip threat language into an all-clear.
+        private static let negationPhrases = [
+            "no threat", "not detected", "nothing detected", "0 threats",
+            "no malware", "no infected",
+        ]
+
+        public static func classify(_ message: String) -> Kind {
+            let lowered = message.lowercased()
+            let negated = negationPhrases.contains { lowered.contains($0) }
+            if !negated, lowered.firstMatch(of: threatPattern) != nil {
+                return .detection
+            }
+            if lowered.contains("assessment") || lowered.contains("gatekeeper") {
+                return .assessment
+            }
+            if lowered.contains("scan") {
+                return .scan
+            }
+            return .activity
         }
     }
 }

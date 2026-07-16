@@ -62,3 +62,40 @@ private let sampleNDJSON = """
         #expect(kinds[.activity]?.count == 1)
     }
 }
+
+@Suite struct DetectionClassifierTests {
+    private func kind(_ message: String) -> XProtectLogEntry.Kind {
+        XProtectLogEntry.Kind.classify(message)
+    }
+
+    @Test func threatNounsAreDetections() {
+        #expect(kind("malware detected: OSX.Trojan.Test") == .detection)
+        #expect(kind("Found adware component in bundle") == .detection)
+        #expect(kind("file is infected") == .detection)
+        #expect(kind("YARA rule matched") == .detection)
+        #expect(kind("2 threats found during periodic scan") == .detection)
+        #expect(kind("Detected XProtect.Adload variant") == .detection)
+        #expect(kind("remediation succeeded for module DubRobber") == .detection)
+    }
+
+    @Test func allClearLanguageIsNotADetection() {
+        #expect(kind("Scan finished: no threats detected") == .scan)
+        #expect(kind("nothing detected in this run") == .activity)
+        #expect(kind("0 threats found, scan complete") == .scan)
+        #expect(kind("no malware present") == .activity)
+    }
+
+    @Test func bareDetectedDoesNotTrigger() {
+        // The old substring heuristic flagged all of these.
+        #expect(kind("no new updates detected") == .activity)
+        #expect(kind("display change detected") == .activity)
+        #expect(kind("XProtectRemediatorMRTv3 launched") == .activity)
+    }
+
+    @Test func otherKindsStillClassify() {
+        #expect(kind("assessment denied for /tmp/app") == .assessment)
+        #expect(kind("Gatekeeper policy check") == .assessment)
+        #expect(kind("Timed scan starting with high priority") == .scan)
+        #expect(kind("xpc connection invalidated") == .activity)
+    }
+}

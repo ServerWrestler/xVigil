@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 import xVigilCore
+import xVigilScan
 
 /// State for the dashboard window: filterable quarantine browsing with
 /// keyset pagination, per-event enrichment, and grouped XProtect activity.
@@ -8,8 +9,10 @@ import xVigilCore
 @Observable
 final class DashboardModel {
     enum Section: String, Hashable, CaseIterable {
+        case detections = "Detections"
         case quarantine = "Quarantine Events"
         case activity = "XProtect Activity"
+        case scan = "On-Demand Scan"
         case status = "Protection Status"
     }
 
@@ -58,14 +61,31 @@ final class DashboardModel {
         activities.first { $0.id == selectedActivityID }
     }
 
+    // MARK: Detections
+
+    var selectedFindingID: Finding.ID?
+
+    // MARK: On-demand scan
+
+    private(set) var engineAvailability: EngineAvailability?
+    var scanPaths: [String] = DashboardModel.defaultScanPaths()
+    private(set) var scanIsRunning = false
+    private(set) var scanThreats: [Finding] = []
+    private(set) var scanSummary: ScanSummary?
+    private(set) var scanStatusLine: String?
+    private var scanTask: Task<Void, Never>?
+
     // MARK: Status
 
     private(set) var status: SystemStatus?
 
+    let monitor: DetectionMonitor
     private let store = QuarantineStore()
+    private let engine = ClamAVEngine()
     private var searchDebounce: Task<Void, Never>?
 
-    init() {
+    init(monitor: DetectionMonitor) {
+        self.monitor = monitor
         // Headless self-check inside the real GUI process:
         //   XVIGIL_SMOKE=1 .build/debug/xVigil
         if ProcessInfo.processInfo.environment["XVIGIL_SMOKE"] != nil {
@@ -208,6 +228,67 @@ final class DashboardModel {
         }
     }
 
+    // MARK: - On-demand scan
+
+    static func defaultScanPaths() -> [String] {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        let candidates = ["/opt/homebrew", "/usr/local", home + "/Downloads"]
+        return candidates.filter { FileManager.default.fileExists(atPath: $0) }
+    }
+
+    func checkEngine() {
+        let engine = self.engine
+        Task {
+            self.engineAvailability = await engine.availability()
+        }
+    }
+
+    func startScan() {
+        guard !scanIsRunning, !scanPaths.isEmpty else { return }
+        scanIsRunning = true
+        scanThreats = []
+        scanSummary = nil
+        scanStatusLine = nil
+        monitor.setScanFindings([])
+
+        let engine = self.engine
+        let urls = scanPaths.map { URL(fileURLWithPath: $0) }
+        scanTask = Task {
+            for await event in engine.scan(paths: urls, options: ScanOptions()) {
+                switch event {
+                case .started(let scanner, _):
+                    self.scanStatusLine = "Scanning with \(scanner)…"
+                case .threatFound(let path, let signature):
+                    let finding = Finding(
+                        source: .scan, date: Date(),
+                        title: signature, detail: path, path: path)
+                    self.scanThreats.append(finding)
+                    self.monitor.setScanFindings(self.scanThreats)
+                case .progress(let message):
+                    self.scanStatusLine = message
+                case .finished(let summary):
+                    self.scanSummary = summary
+                    self.scanStatusLine = nil
+                }
+            }
+            self.scanIsRunning = false
+            self.scanTask = nil
+        }
+    }
+
+    func stopScan() {
+        scanTask?.cancel()
+    }
+
+    func addScanPath(_ url: URL) {
+        let path = url.path
+        if !scanPaths.contains(path) { scanPaths.append(path) }
+    }
+
+    func removeScanPath(_ path: String) {
+        scanPaths.removeAll { $0 == path }
+    }
+
     // MARK: - Status
 
     func refreshStatus() {
@@ -243,6 +324,11 @@ final class DashboardModel {
         enrichIfNeeded(event)
         loadRelatedLogsIfNeeded(for: event)
         loadActivities()
+
+        let availability = await engine.availability()
+        stamp("scan engine: installed=\(availability.installed)"
+            + " daemon=\(availability.daemonRunning)"
+            + " sigAge=\(availability.signatureAge.map { "\(Int($0 / 3600))h" } ?? "n/a")")
 
         var enrichDone = false
         var logsDone = false

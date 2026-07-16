@@ -3,12 +3,13 @@ import xVigilCore
 
 struct DashboardView: View {
     @Bindable var model: DashboardModel
+    let monitor: DetectionMonitor
 
     var body: some View {
         NavigationSplitView {
             List(selection: sidebarSelection) {
                 ForEach(DashboardModel.Section.allCases, id: \.self) { section in
-                    Label(section.rawValue, systemImage: icon(for: section))
+                    sidebarRow(section)
                         .tag(section)
                 }
             }
@@ -17,17 +18,29 @@ struct DashboardView: View {
         } content: {
             Group {
                 switch model.section {
+                case .detections:
+                    DetectionsListView(model: model, monitor: monitor)
                 case .quarantine:
                     QuarantineListView(model: model)
                 case .activity:
                     ActivityListView(model: model)
+                case .scan:
+                    ScanPaneView(model: model)
                 case .status:
                     StatusPaneView(model: model)
                 }
             }
-            .navigationSplitViewColumnWidth(min: 320, ideal: 380)
+            .navigationSplitViewColumnWidth(min: 320, ideal: 400)
         } detail: {
             switch model.section {
+            case .detections:
+                if let finding = monitor.findings.first(where: { $0.id == model.selectedFindingID }) {
+                    FindingDetailView(finding: finding)
+                } else {
+                    placeholder(monitor.count == 0
+                        ? "No active findings"
+                        : "Select a finding")
+                }
             case .quarantine:
                 if let event = model.selectedEvent {
                     QuarantineDetailView(event: event, model: model)
@@ -40,12 +53,25 @@ struct DashboardView: View {
                 } else {
                     placeholder("Select an activity")
                 }
+            case .scan:
+                placeholder("On-demand scanning")
             case .status:
                 placeholder("Protection status")
             }
         }
         .navigationTitle("xVigil")
         .frame(minWidth: 800, minHeight: 480)
+    }
+
+    @ViewBuilder
+    private func sidebarRow(_ section: DashboardModel.Section) -> some View {
+        if section == .detections && monitor.count > 0 {
+            Label(section.rawValue, systemImage: "exclamationmark.shield.fill")
+                .foregroundStyle(.red)
+                .badge(monitor.count)
+        } else {
+            Label(section.rawValue, systemImage: icon(for: section))
+        }
     }
 
     private var sidebarSelection: Binding<DashboardModel.Section?> {
@@ -57,8 +83,10 @@ struct DashboardView: View {
 
     private func icon(for section: DashboardModel.Section) -> String {
         switch section {
+        case .detections: "checkmark.shield"
         case .quarantine: "tray.full"
         case .activity: "waveform.path.ecg"
+        case .scan: "magnifyingglass.circle"
         case .status: "shield.lefthalf.filled"
         }
     }
