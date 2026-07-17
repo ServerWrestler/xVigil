@@ -16,9 +16,10 @@ Early prototype. Working so far:
 - **On-demand scanning** — pluggable `ScanEngine` with a ClamAV backend:
   detects a Homebrew install, prefers the daemon, warns on stale signatures,
   streams results live. Report-only — never quarantines or deletes.
-- **Dashboard window** — `NavigationSplitView` with three sections: quarantine
-  events (searchable, filterable by agent/type, keyset-paginated), XProtect
-  activity (log entries clustered into scan runs), and protection status.
+- **Dashboard window** — `NavigationSplitView` with five sections: detections,
+  quarantine events (searchable, filterable by agent/type, paginated),
+  XProtect activity (log entries clustered into scan runs), on-demand scan,
+  and protection status.
 - **Quarantine layer** (`QuarantineStore`) — read-only SQLite access to
   `~/Library/Preferences/com.apple.LaunchServices.QuarantineEventsV2`, with
   filtered queries and pagination.
@@ -44,8 +45,11 @@ the Gatekeeper-visibility app makes you talk to Gatekeeper; consider it a
 product demo). Or build it yourself:
 
 ```sh
-scripts/make-app.sh 0.1.0   # produces dist/xVigil.app and a zip
+scripts/make-app.sh 0.2.0   # produces dist/xVigil.app and a zip
 ```
+
+Requires macOS 15+. ClamAV (`brew install clamav`) is optional and only
+needed for on-demand scanning.
 
 ## Setup
 
@@ -80,10 +84,13 @@ swift run xvigil-cli scan ~/Downloads   # on-demand scan (report-only)
 
 ## Layout
 
-- `Sources/xVigilCore/` — data layer (quarantine DB, log parsing, system status)
-- `Sources/xVigil/` — menu bar app
+- `Sources/xVigilCore/` — pure-read data layer (quarantine DB, log parsing,
+  system status)
+- `Sources/xVigilScan/` — on-demand scanning (`ScanEngine` protocol, ClamAV
+  backend)
+- `Sources/xVigil/` — menu bar app + dashboard
 - `Sources/xvigil-cli/` — CLI harness for prototyping
-- `Tests/xVigilCoreTests/` — unit tests against fixture data
+- `Tests/` — unit tests against fixture data (core and scan)
 
 ## Implementation notes
 
