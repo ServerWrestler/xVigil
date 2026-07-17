@@ -86,11 +86,13 @@ final class DashboardModel {
 
     init(monitor: DetectionMonitor) {
         self.monitor = monitor
-        // Headless self-check inside the real GUI process:
+        // Headless self-check inside the real GUI process (debug builds only):
         //   XVIGIL_SMOKE=1 .build/debug/xVigil
-        if ProcessInfo.processInfo.environment["XVIGIL_SMOKE"] != nil {
-            Task { await runSmokeTest() }
-        }
+        #if DEBUG
+            if ProcessInfo.processInfo.environment["XVIGIL_SMOKE"] != nil {
+                Task { await runSmokeTest() }
+            }
+        #endif
     }
 
     // MARK: - Quarantine actions
@@ -144,7 +146,7 @@ final class DashboardModel {
     }
 
     func loadMore() {
-        guard hasMore, !isLoading, let last = events.last?.timestamp else { return }
+        guard hasMore, !isLoading, let last = events.last, last.timestamp != nil else { return }
         isLoading = true
         let store = self.store
         let filter = currentFilter
@@ -254,7 +256,7 @@ final class DashboardModel {
         let engine = self.engine
         let urls = scanPaths.map { URL(fileURLWithPath: $0) }
         scanTask = Task {
-            for await event in engine.scan(paths: urls, options: ScanOptions()) {
+            for await event in engine.scan(paths: urls) {
                 switch event {
                 case .started(let scanner, _):
                     self.scanStatusLine = "Scanning with \(scanner)…"
@@ -293,7 +295,7 @@ final class DashboardModel {
 
     func refreshStatus() {
         Task {
-            self.status = await Task.detached { SystemStatus.current() }.value
+            self.status = await SystemStatus.load()
         }
     }
 
@@ -301,12 +303,13 @@ final class DashboardModel {
         QuarantineFilter(agentName: agentFilter, kind: kindFilter, searchText: searchText)
     }
 
-    // MARK: - Headless smoke test (XVIGIL_SMOKE=1)
+    // MARK: - Headless smoke test (XVIGIL_SMOKE=1, debug builds only)
 
+    #if DEBUG
     /// Exercises the exact model paths the detail pane uses, inside the real
     /// NSApplication process, then exits. Exists because the async plumbing
     /// (cooperative pool vs GCD) behaves differently in a GUI app than in
-    /// the CLI harness.
+    /// the CLI harness. Compiled out of release builds.
     private func runSmokeTest() async {
         let started = Date()
         func stamp(_ message: String) {
@@ -363,4 +366,5 @@ final class DashboardModel {
         stamp("SMOKE TIMEOUT — enrich:\(enrichDone) logs:\(logsDone) activities:\(activitiesDone)")
         exit(1)
     }
+    #endif
 }

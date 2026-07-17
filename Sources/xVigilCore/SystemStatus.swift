@@ -8,6 +8,18 @@ public struct SystemStatus: Sendable {
     /// XProtect Remediator app version, if installed.
     public let remediatorVersion: String?
 
+    /// Async variant that keeps the blocking `spctl` call off the cooperative
+    /// pool — use this from app code; `current()` is for synchronous contexts.
+    public static func load() async -> SystemStatus {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                continuation.resume(returning: current())
+            }
+        }
+    }
+
+    /// Blocks the calling thread (runs `spctl`). Never call from the main
+    /// thread or a Swift Concurrency cooperative thread; use `load()` there.
     public static func current() -> SystemStatus {
         SystemStatus(
             gatekeeperEnabled: readGatekeeperStatus(),

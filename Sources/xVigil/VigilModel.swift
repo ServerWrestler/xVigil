@@ -24,15 +24,15 @@ final class VigilModel {
         let store = self.store
         Task {
             do {
+                // Status blocks on spctl, so it loads via GCD; the SQLite
+                // reads are fast enough for a detached task.
+                async let status = SystemStatus.load()
                 let loaded = try await Task.detached(priority: .userInitiated) {
-                    let status = SystemStatus.current()
-                    let events = try store.recentEvents(limit: 20)
-                    let count = try store.eventCount()
-                    return (status, events, count)
+                    (try store.recentEvents(limit: 20), try store.eventCount())
                 }.value
-                self.status = loaded.0
-                self.recentEvents = loaded.1
-                self.totalEventCount = loaded.2
+                self.status = await status
+                self.recentEvents = loaded.0
+                self.totalEventCount = loaded.1
                 self.lastRefreshed = Date()
             } catch {
                 self.errorMessage = error.localizedDescription

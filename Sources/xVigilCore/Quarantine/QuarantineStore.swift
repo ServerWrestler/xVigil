@@ -35,28 +35,18 @@ public struct QuarantineStore: Sendable {
     }
 
     /// The most recent quarantine events, newest first.
-    public func recentEvents(limit: Int = 50, since: Date? = nil) throws -> [QuarantineEvent] {
-        var sql = """
+    public func recentEvents(limit: Int = 50) throws -> [QuarantineEvent] {
+        let sql = """
             SELECT LSQuarantineEventIdentifier, LSQuarantineTimeStamp,
                    LSQuarantineAgentName, LSQuarantineAgentBundleIdentifier,
                    LSQuarantineDataURLString, LSQuarantineOriginURLString,
                    LSQuarantineSenderName, LSQuarantineSenderAddress,
                    LSQuarantineTypeNumber
             FROM LSQuarantineEvent
+            ORDER BY LSQuarantineTimeStamp DESC LIMIT ?
             """
-        if since != nil {
-            sql += " WHERE LSQuarantineTimeStamp >= ?"
-        }
-        sql += " ORDER BY LSQuarantineTimeStamp DESC LIMIT ?"
-
         return try withStatement(sql) { statement in
-            var index: Int32 = 1
-            if let since {
-                sqlite3_bind_double(statement, index, since.timeIntervalSinceReferenceDate)
-                index += 1
-            }
-            sqlite3_bind_int(statement, index, Int32(limit))
-
+            bind([.integer(limit)], to: statement)
             var events: [QuarantineEvent] = []
             while sqlite3_step(statement) == SQLITE_ROW {
                 events.append(event(from: statement))
@@ -67,12 +57,14 @@ public struct QuarantineStore: Sendable {
 
     /// Filtered, keyset-paginated query for browsing the full database.
     ///
-    /// Pass the timestamp of the last event from the previous page as `before`
-    /// to fetch the next page. Rows with a NULL timestamp are ignored once
-    /// paginating (they cannot be ordered).
+    /// Pass the last event of the previous page as `before` to fetch the next
+    /// page. The cursor is the composite (timestamp, id): timestamps are not
+    /// unique (batch downloads share one), so paginating on timestamp alone
+    /// drops rows at page boundaries. Rows with a NULL timestamp are ignored
+    /// once paginating (they cannot be ordered).
     public func events(
         matching filter: QuarantineFilter = QuarantineFilter(),
-        before: Date? = nil,
+        before: QuarantineEvent? = nil,
         limit: Int = 100
     ) throws -> [QuarantineEvent] {
         var clauses: [String] = []
@@ -98,9 +90,15 @@ public struct QuarantineStore: Sendable {
                 "(" + columns.map { "\($0) LIKE ? ESCAPE '\\'" }.joined(separator: " OR ") + ")")
             values.append(contentsOf: Array(repeating: .text(pattern), count: columns.count))
         }
-        if let before {
-            clauses.append("LSQuarantineTimeStamp < ?")
-            values.append(.real(before.timeIntervalSinceReferenceDate))
+        if let before, let cursorDate = before.timestamp {
+            let cursor = cursorDate.timeIntervalSinceReferenceDate
+            clauses.append("""
+                (LSQuarantineTimeStamp < ? OR \
+                (LSQuarantineTimeStamp = ? AND LSQuarantineEventIdentifier < ?))
+                """)
+            values.append(.real(cursor))
+            values.append(.real(cursor))
+            values.append(.text(before.id))
         }
 
         var sql = """
@@ -114,7 +112,7 @@ public struct QuarantineStore: Sendable {
         if !clauses.isEmpty {
             sql += " WHERE " + clauses.joined(separator: " AND ")
         }
-        sql += " ORDER BY LSQuarantineTimeStamp DESC LIMIT ?"
+        sql += " ORDER BY LSQuarantineTimeStamp DESC, LSQuarantineEventIdentifier DESC LIMIT ?"
         values.append(.integer(limit))
 
         return try withStatement(sql) { statement in
@@ -124,6 +122,24 @@ public struct QuarantineStore: Sendable {
                 events.append(event(from: statement))
             }
             return events
+        }
+    }
+
+    /// Single-event lookup by LSQuarantineEventIdentifier.
+    public func event(id: String) throws -> QuarantineEvent? {
+        let sql = """
+            SELECT LSQuarantineEventIdentifier, LSQuarantineTimeStamp,
+                   LSQuarantineAgentName, LSQuarantineAgentBundleIdentifier,
+                   LSQuarantineDataURLString, LSQuarantineOriginURLString,
+                   LSQuarantineSenderName, LSQuarantineSenderAddress,
+                   LSQuarantineTypeNumber
+            FROM LSQuarantineEvent
+            WHERE LSQuarantineEventIdentifier = ? LIMIT 1
+            """
+        return try withStatement(sql) { statement in
+            bind([.text(id)], to: statement)
+            guard sqlite3_step(statement) == SQLITE_ROW else { return nil }
+            return event(from: statement)
         }
     }
 

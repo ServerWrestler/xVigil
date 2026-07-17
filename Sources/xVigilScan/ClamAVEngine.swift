@@ -60,18 +60,17 @@ public struct ClamAVEngine: ScanEngine {
         let scanner = daemonRunning ? clamdscan : clamscan
         let signatureAge = signatureDatabaseAge(scannerPath: scanner ?? clamdscan)
 
-        var parts: [String] = []
-        if let scanner { parts.append(scanner) }
-        parts.append(daemonRunning
-            ? "daemon running (fast scans)"
-            : "daemon not running — falling back to clamscan, which reloads "
-                + "the full signature database each run (slow start)")
+        // Path lives in scannerPath; detail carries only what isn't shown
+        // elsewhere, so UIs don't render the path twice.
         return EngineAvailability(
             installed: true,
             daemonRunning: daemonRunning,
             scannerPath: scanner,
             signatureAge: signatureAge,
-            detail: parts.joined(separator: "\n"))
+            detail: daemonRunning
+                ? "daemon running (fast scans)"
+                : "daemon not running — falling back to clamscan, which reloads "
+                    + "the full signature database each run (slow start)")
     }
 
     static func findExecutable(_ name: String) -> String? {
@@ -115,7 +114,10 @@ public struct ClamAVEngine: ScanEngine {
 
     // MARK: - Scanning
 
-    public func scan(paths: [URL], options: ScanOptions = ScanOptions()) -> AsyncStream<ScanEvent> {
+    /// No timeout by design: scan duration is unbounded (tree size × disk
+    /// speed) and the consumer can cancel at any time, which terminates the
+    /// child process via the stream's onTermination.
+    public func scan(paths: [URL]) -> AsyncStream<ScanEvent> {
         let engine = self
         return AsyncStream { continuation in
             let task = Task {

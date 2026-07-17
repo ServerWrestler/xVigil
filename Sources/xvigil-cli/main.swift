@@ -90,7 +90,7 @@ func runEnrich(eventID: String?) async throws {
     let store = QuarantineStore()
     let event: QuarantineEvent
     if let eventID {
-        guard let found = try store.events(limit: 5000).first(where: { $0.id == eventID }) else {
+        guard let found = try store.event(id: eventID) else {
             FileHandle.standardError.write(Data("error: no event with ID \(eventID)\n".utf8))
             exit(1)
         }
@@ -152,7 +152,7 @@ func runEngine() async {
 
 func runScan(paths: [String]) async {
     let urls = paths.map { URL(fileURLWithPath: $0) }
-    for await event in ClamAVEngine().scan(paths: urls, options: ScanOptions()) {
+    for await event in ClamAVEngine().scan(paths: urls) {
         switch event {
         case .started(let scanner, let paths):
             print("Scanning \(paths.joined(separator: ", ")) with \(scanner)")

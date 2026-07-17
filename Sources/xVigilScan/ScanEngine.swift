@@ -10,7 +10,7 @@ public protocol ScanEngine: Sendable {
     func availability() async -> EngineAvailability
     /// Streams results live. Report-only by contract: engines must never
     /// quarantine, delete, or modify what they find.
-    func scan(paths: [URL], options: ScanOptions) -> AsyncStream<ScanEvent>
+    func scan(paths: [URL]) -> AsyncStream<ScanEvent>
 }
 
 public struct EngineAvailability: Equatable, Sendable {
@@ -47,10 +47,6 @@ public struct EngineAvailability: Equatable, Sendable {
         guard let signatureAge else { return true }
         return signatureAge > Self.staleSignatureThreshold
     }
-}
-
-public struct ScanOptions: Equatable, Sendable {
-    public init() {}
 }
 
 public enum ScanEvent: Sendable {

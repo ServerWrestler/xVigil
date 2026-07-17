@@ -90,6 +90,7 @@ private final class LineStreamer: @unchecked Sendable {
         sawEOF = true
         let remainder = buffer.isEmpty ? nil : Self.decode(buffer)
         buffer.removeAll()
+        let continuation = self.continuation
         lock.unlock()
         if let remainder { continuation?.yield(.line(remainder)) }
         finishIfComplete()

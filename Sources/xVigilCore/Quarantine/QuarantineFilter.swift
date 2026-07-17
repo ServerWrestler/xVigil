@@ -14,9 +14,4 @@ public struct QuarantineFilter: Equatable, Sendable {
         self.kind = kind
         self.searchText = searchText
     }
-
-    public var isEmpty: Bool {
-        agentName == nil && kind == nil
-            && searchText.trimmingCharacters(in: .whitespaces).isEmpty
-    }
 }

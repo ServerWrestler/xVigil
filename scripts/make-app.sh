@@ -10,6 +10,8 @@ set -eu
 
 VERSION=${1:-0.1.0}
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
+# Monotonic build number so update tooling can order releases.
+BUILD_NUMBER=$(git -C "$ROOT" rev-list --count HEAD 2>/dev/null || echo 1)
 DIST="$ROOT/dist"
 APP="$DIST/xVigil.app"
 
@@ -42,7 +44,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>CFBundleDisplayName</key>            <string>xVigil</string>
     <key>CFBundlePackageType</key>            <string>APPL</string>
     <key>CFBundleShortVersionString</key>     <string>$VERSION</string>
-    <key>CFBundleVersion</key>                <string>$VERSION</string>
+    <key>CFBundleVersion</key>                <string>$BUILD_NUMBER</string>
     <key>LSMinimumSystemVersion</key>         <string>15.0</string>
     <key>LSUIElement</key>                    <true/>
     <key>NSHumanReadableCopyright</key>       <string>MIT License</string>
