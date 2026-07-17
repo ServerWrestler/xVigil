@@ -48,8 +48,31 @@ private struct MenuBarLabel: View {
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // Menu-bar-only app: no Dock icon. Needed because `swift run` launches
-        // us without a bundle, so there is no Info.plist LSUIElement key.
+        // Build-time hook: make-app.sh runs the binary with this env var to
+        // dump the programmatic icon as a PNG for the bundle's .icns.
+        if let iconPath = ProcessInfo.processInfo.environment["XVIGIL_DUMP_ICON"] {
+            AppIcon.writePNG(to: iconPath)
+            exit(0)
+        }
+        // Menu-bar app: start without a Dock icon; DockPresence adds one
+        // while the dashboard window is open. The explicit policy matters
+        // because `swift run` launches us without a bundle Info.plist.
+        NSApp.setActivationPolicy(.accessory)
+        NSApp.applicationIconImage = AppIcon.image(size: 512)
+    }
+}
+
+/// The Dock icon appears while the dashboard is open (like System Settings
+/// panes from menu bar apps) and disappears when it closes, keeping the app
+/// menu-bar-native the rest of the time.
+@MainActor
+enum DockPresence {
+    static func dashboardOpened() {
+        NSApp.setActivationPolicy(.regular)
+        NSApp.activate()
+    }
+
+    static func dashboardClosed() {
         NSApp.setActivationPolicy(.accessory)
     }
 }

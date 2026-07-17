@@ -61,6 +61,8 @@ struct DashboardView: View {
         }
         .navigationTitle("xVigil")
         .frame(minWidth: 800, minHeight: 480)
+        .onAppear { DockPresence.dashboardOpened() }
+        .onDisappear { DockPresence.dashboardClosed() }
     }
 
     @ViewBuilder

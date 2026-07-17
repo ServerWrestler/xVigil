@@ -31,6 +31,26 @@ rm -rf "$DIST"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/xVigil"
 
+# The binary draws its own icon; dump it and build the .icns from it so the
+# Dock, Cmd-Tab, and Finder all show the same shield.
+echo "Building icon…"
+ICON_PNG="$DIST/icon-1024.png"
+ICONSET="$DIST/AppIcon.iconset"
+if XVIGIL_DUMP_ICON="$ICON_PNG" "$APP/Contents/MacOS/xVigil" && [ -f "$ICON_PNG" ]; then
+    mkdir -p "$ICONSET"
+    for spec in "16 icon_16x16.png" "32 icon_16x16@2x.png" "32 icon_32x32.png" \
+        "64 icon_32x32@2x.png" "128 icon_128x128.png" "256 icon_128x128@2x.png" \
+        "256 icon_256x256.png" "512 icon_256x256@2x.png" "512 icon_512x512.png" \
+        "1024 icon_512x512@2x.png"; do
+        set -- $spec
+        sips -z "$1" "$1" "$ICON_PNG" --out "$ICONSET/$2" >/dev/null
+    done
+    iconutil -c icns -o "$APP/Contents/Resources/AppIcon.icns" "$ICONSET"
+    rm -rf "$ICONSET" "$ICON_PNG"
+else
+    echo "warning: icon dump failed; bundle ships without an .icns" >&2
+fi
+
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -43,6 +63,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>CFBundleName</key>                   <string>xVigil</string>
     <key>CFBundleDisplayName</key>            <string>xVigil</string>
     <key>CFBundlePackageType</key>            <string>APPL</string>
+    <key>CFBundleIconFile</key>               <string>AppIcon</string>
     <key>CFBundleShortVersionString</key>     <string>$VERSION</string>
     <key>CFBundleVersion</key>                <string>$BUILD_NUMBER</string>
     <key>LSMinimumSystemVersion</key>         <string>15.0</string>
@@ -53,6 +74,8 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 PLIST
 
 echo "Signing (ad-hoc)…"
+# sips/iconutil leave Finder-info xattrs that codesign rejects as "detritus".
+xattr -cr "$APP"
 codesign --force --sign - "$APP"
 
 ZIP="$DIST/xVigil-$VERSION.zip"

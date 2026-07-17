@@ -42,7 +42,11 @@ check "hardcoded credential" "(api[_-]?key|secret|passwd|password|auth[_-]?token
 # Absolute home paths leak your username. Test fixtures use /Users/x, which
 # the 2+ character requirement deliberately permits.
 check "absolute home path" '/Users/[A-Za-z][A-Za-z0-9_.-]+'
-check "email address" '[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+\.[A-Za-z]{2,}'
+# Retina-suffix filenames (icon@2x.png) are not email addresses.
+emails=$(printf '%s\n' "$staged" \
+    | grep -nE '[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+\.[A-Za-z]{2,}' \
+    | grep -vE '@[0-9]+x\.' || true)
+[ -n "$emails" ] && report "email address" "$emails"
 
 # Local-only personal patterns (never committed).
 personal=".git/info/personal-patterns"
