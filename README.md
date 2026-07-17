@@ -13,6 +13,8 @@ Early prototype. Working so far:
 - **Loud detections** — a background monitor sweeps XProtect logs; any finding
   turns the menu bar icon into a red warning shield, banners the popover, and
   lands in a Detections dashboard section.
+- **App behavior** — a shield Dock icon appears while the dashboard is open;
+  optional start-at-login toggle in the Status pane (installed .app only).
 - **On-demand scanning** — pluggable `ScanEngine` with a ClamAV backend:
   detects a Homebrew install, prefers the daemon, warns on stale signatures,
   streams results live. Report-only — never quarantines or deletes.
@@ -116,6 +118,5 @@ swift run xvigil-cli scan ~/Downloads   # on-demand scan (report-only)
 - Notifications on new quarantine events and new detections
 - Drop-a-file-to-verify: `spctl`/`codesign` verdict for any file, not just
   quarantine events
-- Login item support
 - Scheduled scans and more engines (YARA, rkhunter); file-on-write monitoring
   stays out of scope (needs an Endpoint Security entitlement)
