@@ -31,6 +31,9 @@ that machinery on screen — loudly, when something is found.
   lands in a Detections dashboard section.
 - **App behavior** — a shield Dock icon appears while the dashboard is open;
   optional start-at-login toggle in the Status pane (installed .app only).
+- **Update check** — optionally checks GitHub Releases for a newer version on
+  a daily, weekly, or monthly cadence (one anonymous request; notify-and-link
+  only, never auto-installed). Configurable in the Status pane.
 - **On-demand + scheduled scanning** — pluggable `ScanEngine` with a ClamAV
   backend: detects a Homebrew install, prefers the daemon, warns on stale
   signatures, streams results live, and can run automatically on a daily or
