@@ -1,7 +1,25 @@
 # 🛡️ xVigil
 
-A macOS menu bar app that surfaces what XProtect and Gatekeeper are quietly doing:
-quarantine events, protection status, and XProtect activity from the unified log.
+**xVigil is a macOS security product.** Apple ships real protection with
+every Mac — XProtect malware scanning, Gatekeeper, quarantine — but it all
+works in silence: scans you never see, verdicts you never read, records
+buried in databases you'd never open. xVigil lives in your menu bar and puts
+that machinery on screen — loudly, when something is found.
+
+**What it does:**
+
+- **Watches** — sweeps XProtect's activity in the background. A detection
+  turns the menu bar shield red, banners the popover, and files into a
+  Detections pane. No detections means a quiet shield, verifiably — not
+  silence you have to trust.
+- **Explains** — every quarantine event on your Mac: what was downloaded, by
+  which app, from where. Drill into an event to locate the file on disk, get
+  Gatekeeper's verdict on it today, inspect its code-signature chain, and see
+  the system's own log activity around the moment it arrived.
+- **Scans** — on-demand and scheduled ClamAV scans of the places Apple's
+  tools never proactively check (Homebrew prefixes, Downloads). Report-only
+  by design: xVigil tells you what it found and where; it never quarantines
+  or deletes anything.
 
 ## Features
 
@@ -13,9 +31,10 @@ quarantine events, protection status, and XProtect activity from the unified log
   lands in a Detections dashboard section.
 - **App behavior** — a shield Dock icon appears while the dashboard is open;
   optional start-at-login toggle in the Status pane (installed .app only).
-- **On-demand scanning** — pluggable `ScanEngine` with a ClamAV backend:
-  detects a Homebrew install, prefers the daemon, warns on stale signatures,
-  streams results live. Report-only — never quarantines or deletes.
+- **On-demand + scheduled scanning** — pluggable `ScanEngine` with a ClamAV
+  backend: detects a Homebrew install, prefers the daemon, warns on stale
+  signatures, streams results live, and can run automatically on a daily or
+  weekly schedule. Report-only — never quarantines or deletes.
 - **Dashboard window** — `NavigationSplitView` with five sections: detections,
   quarantine events (searchable, filterable by agent/type, paginated),
   XProtect activity (log entries clustered into scan runs), on-demand scan,
@@ -116,5 +135,5 @@ swift run xvigil-cli scan ~/Downloads   # on-demand scan (report-only)
 - Notifications on new quarantine events and new detections
 - Drop-a-file-to-verify: `spctl`/`codesign` verdict for any file, not just
   quarantine events
-- Scheduled scans and more engines (YARA, rkhunter); file-on-write monitoring
-  stays out of scope (needs an Endpoint Security entitlement)
+- More scan engines behind `ScanEngine` (YARA, rkhunter); file-on-write
+  monitoring stays out of scope (needs an Endpoint Security entitlement)
