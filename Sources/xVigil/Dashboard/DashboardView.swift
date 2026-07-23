@@ -4,6 +4,7 @@ import xVigilCore
 struct DashboardView: View {
     @Bindable var model: DashboardModel
     let monitor: DetectionMonitor
+    let updates: UpdateChecker
 
     var body: some View {
         NavigationSplitView {
@@ -27,7 +28,7 @@ struct DashboardView: View {
                 case .scan:
                     ScanPaneView(model: model)
                 case .status:
-                    StatusPaneView(model: model)
+                    StatusPaneView(model: model, updates: updates)
                 }
             }
             .navigationSplitViewColumnWidth(min: 320, ideal: 400)

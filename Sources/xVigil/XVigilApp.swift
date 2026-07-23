@@ -7,6 +7,7 @@ struct XVigilApp: App {
     @State private var model = VigilModel()
     @State private var monitor: DetectionMonitor
     @State private var scanner: ScanController
+    @State private var updates = UpdateChecker()
     @State private var dashboard: DashboardModel
 
     init() {
@@ -19,14 +20,14 @@ struct XVigilApp: App {
 
     var body: some Scene {
         MenuBarExtra {
-            MenuBarView(model: model, dashboard: dashboard, monitor: monitor)
+            MenuBarView(model: model, dashboard: dashboard, monitor: monitor, updates: updates)
         } label: {
-            MenuBarLabel(monitor: monitor, scanner: scanner)
+            MenuBarLabel(monitor: monitor, scanner: scanner, updates: updates)
         }
         .menuBarExtraStyle(.window)
 
         Window("xVigil", id: "dashboard") {
-            DashboardView(model: dashboard, monitor: monitor)
+            DashboardView(model: dashboard, monitor: monitor, updates: updates)
         }
         .defaultSize(width: 960, height: 600)
         // Menu bar app: the dashboard opens on demand, not at launch.
@@ -40,6 +41,7 @@ struct XVigilApp: App {
 private struct MenuBarLabel: View {
     let monitor: DetectionMonitor
     let scanner: ScanController
+    let updates: UpdateChecker
 
     var body: some View {
         Image(systemName: monitor.count > 0
@@ -49,6 +51,7 @@ private struct MenuBarLabel: View {
             .onAppear {
                 monitor.start()
                 scanner.start()
+                updates.start()
             }
     }
 }

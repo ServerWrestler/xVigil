@@ -3,10 +3,12 @@ import xVigilCore
 
 struct StatusPaneView: View {
     let model: DashboardModel
+    let updates: UpdateChecker
     @State private var loginEnabled = false
     @State private var loginError: String?
 
     var body: some View {
+        @Bindable var updates = updates
         Form {
             Section("Protection status") {
                 statusRow(
@@ -23,6 +25,7 @@ struct StatusPaneView: View {
                     healthy: model.status?.remediatorVersion != nil)
             }
             loginSection
+            updatesSection(updates: $updates)
             Section {
                 Button("Refresh") { model.refreshStatus() }
             }
@@ -58,6 +61,49 @@ struct StatusPaneView: View {
                         .foregroundStyle(.secondary)
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private func updatesSection(updates bindable: Bindable<UpdateChecker>) -> some View {
+        Section("Updates") {
+            Toggle("Check for updates automatically", isOn: bindable.enabled)
+            Picker("Frequency", selection: bindable.frequency) {
+                ForEach(UpdateChecker.Frequency.allCases) { frequency in
+                    Text(frequency.label).tag(frequency)
+                }
+            }
+            .disabled(!updates.enabled)
+
+            if let release = updates.available {
+                HStack {
+                    Label("xVigil \(release.version) is available", systemImage: "arrow.down.circle.fill")
+                        .foregroundStyle(.blue)
+                    Spacer()
+                    Button("View release") { NSWorkspace.shared.open(release.url) }
+                }
+            }
+
+            HStack(spacing: 8) {
+                Button("Check now") { updates.checkNow() }
+                    .disabled(updates.isChecking)
+                if updates.isChecking {
+                    ProgressView().controlSize(.small)
+                } else if let message = updates.statusMessage {
+                    Text(message)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                if let lastChecked = updates.lastChecked {
+                    Text("checked \(lastChecked.formatted(date: .abbreviated, time: .shortened))")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            Text("Checks the GitHub Releases page with a single anonymous request. Updates are never downloaded or installed automatically.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
 

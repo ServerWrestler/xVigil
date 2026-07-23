@@ -5,6 +5,7 @@ struct MenuBarView: View {
     let model: VigilModel
     let dashboard: DashboardModel
     let monitor: DetectionMonitor
+    let updates: UpdateChecker
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
@@ -12,6 +13,9 @@ struct MenuBarView: View {
             header
             if monitor.count > 0 {
                 detectionsBanner
+            }
+            if let release = updates.available {
+                updateBanner(release)
             }
             Divider()
             statusSection
@@ -63,6 +67,25 @@ struct MenuBarView: View {
             .padding(8)
             .background(.red.opacity(0.15), in: RoundedRectangle(cornerRadius: 6))
             .foregroundStyle(.red)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// Blue, not red: an update is news, not an alarm.
+    private func updateBanner(_ release: UpdateCheck.Release) -> some View {
+        Button {
+            NSWorkspace.shared.open(release.url)
+        } label: {
+            HStack {
+                Image(systemName: "arrow.down.circle.fill")
+                Text("xVigil \(release.version) available — view release")
+                    .font(.callout.weight(.medium))
+                Spacer()
+            }
+            .padding(8)
+            .background(.blue.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
+            .foregroundStyle(.blue)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
