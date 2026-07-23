@@ -6,19 +6,22 @@ struct XVigilApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var model = VigilModel()
     @State private var monitor: DetectionMonitor
+    @State private var scanner: ScanController
     @State private var dashboard: DashboardModel
 
     init() {
         let monitor = DetectionMonitor()
+        let scanner = ScanController(monitor: monitor)
         _monitor = State(initialValue: monitor)
-        _dashboard = State(initialValue: DashboardModel(monitor: monitor))
+        _scanner = State(initialValue: scanner)
+        _dashboard = State(initialValue: DashboardModel(monitor: monitor, scanner: scanner))
     }
 
     var body: some Scene {
         MenuBarExtra {
             MenuBarView(model: model, dashboard: dashboard, monitor: monitor)
         } label: {
-            MenuBarLabel(monitor: monitor)
+            MenuBarLabel(monitor: monitor, scanner: scanner)
         }
         .menuBarExtraStyle(.window)
 
@@ -36,13 +39,17 @@ struct XVigilApp: App {
 /// opening anything.
 private struct MenuBarLabel: View {
     let monitor: DetectionMonitor
+    let scanner: ScanController
 
     var body: some View {
         Image(systemName: monitor.count > 0
             ? "exclamationmark.shield.fill"
             : "shield.lefthalf.filled")
             .foregroundStyle(monitor.count > 0 ? .red : .primary)
-            .onAppear { monitor.start() }
+            .onAppear {
+                monitor.start()
+                scanner.start()
+            }
     }
 }
 
