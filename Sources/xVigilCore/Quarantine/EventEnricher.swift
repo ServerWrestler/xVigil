@@ -11,6 +11,10 @@ public struct EventEnrichment: Equatable, Sendable {
     }
 
     public let fileStatus: FileStatus
+    /// Caveats about the search itself: locations that couldn't be read
+    /// (Full Disk Access) or a truncated walk. Empty means the search was
+    /// complete — "not found" can be trusted.
+    public let searchNotes: [String]
     /// Gatekeeper's verdict on the file today. Nil when the file wasn't found
     /// or isn't an assessable type (app/pkg/dmg).
     public let assessment: GatekeeperAssessment?
@@ -62,14 +66,57 @@ public struct EventEnricher: Sendable {
         _ event: QuarantineEvent,
         locator: QuarantineFileLocator
     ) -> EventEnrichment {
-        guard let url = locator.locate(eventID: event.id) else {
-            return EventEnrichment(fileStatus: .notFound, assessment: nil, signature: nil)
+        var prioritized = locator
+        prioritized.searchDirectories = Self.prioritizedDirectories(
+            locator.searchDirectories, for: event.kind)
+
+        let outcome = prioritized.search(eventID: event.id)
+        let notes = searchNotes(for: outcome, maxEntries: prioritized.maxEntries)
+
+        guard let url = outcome.url else {
+            return EventEnrichment(
+                fileStatus: .notFound, searchNotes: notes, assessment: nil, signature: nil)
         }
         return EventEnrichment(
             fileStatus: .found(path: url.path),
+            searchNotes: notes,
             assessment: assess(url),
             signature: signature(of: url)
         )
+    }
+
+    /// Search where this kind of event's file most likely lives first —
+    /// message attachments sit under ~/Library/Messages, not Downloads.
+    static func prioritizedDirectories(
+        _ directories: [URL],
+        for kind: QuarantineEvent.Kind
+    ) -> [URL] {
+        let marker: String?
+        switch kind {
+        case .messageAttachment: marker = "Library/Messages"
+        case .emailAttachment: marker = "Mail"
+        default: marker = nil
+        }
+        guard let marker else { return directories }
+        let preferred = directories.filter { $0.path.contains(marker) }
+        return preferred + directories.filter { !$0.path.contains(marker) }
+    }
+
+    private static func searchNotes(
+        for outcome: QuarantineFileLocator.Outcome,
+        maxEntries: Int
+    ) -> [String] {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        var notes = outcome.unreadable.map { path in
+            let display = path.hasPrefix(home)
+                ? "~" + path.dropFirst(home.count) : path
+            return "\(display) couldn't be searched — grant xVigil Full Disk Access "
+                + "(System Settings → Privacy & Security) to include it."
+        }
+        if outcome.truncated {
+            notes.append("Search stopped after examining \(maxEntries) files.")
+        }
+        return notes
     }
 
     // MARK: - Gatekeeper (spctl)

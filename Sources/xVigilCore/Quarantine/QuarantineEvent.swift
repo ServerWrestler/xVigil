@@ -48,6 +48,16 @@ public struct QuarantineEvent: Identifiable, Hashable, Sendable {
     /// Decoded quarantine event type.
     public var kind: Kind { Kind(rawValue: typeNumber ?? -1) ?? .unknown }
 
+    /// Display label. Apple uses type numbers beyond the documented 0–5
+    /// (e.g. GarageBand content downloads record type 7); show the raw
+    /// number for those rather than a vague "Unknown".
+    public var kindLabel: String {
+        if kind == .unknown, let typeNumber {
+            return "Type \(typeNumber)"
+        }
+        return kind.label
+    }
+
     public enum Kind: Int, Sendable, CaseIterable {
         case webDownload = 0
         case otherDownload = 1

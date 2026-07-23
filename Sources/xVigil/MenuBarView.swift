@@ -153,7 +153,7 @@ struct MenuBarView: View {
                 }
             }
             HStack(spacing: 4) {
-                Text(event.kind.label)
+                Text(event.kindLabel)
                     .font(.caption2)
                     .padding(.horizontal, 4)
                     .padding(.vertical, 1)

@@ -46,7 +46,7 @@ func runQuarantine(limit: Int) throws {
     for event in events {
         let when = event.timestamp.map { $0.formatted(timestampFormat) } ?? "unknown time"
         let source = event.dataURL ?? event.originURL ?? "no URL recorded"
-        print("[\(when)] \(event.agentName ?? "?") — \(event.kind.label)")
+        print("[\(when)] \(event.agentName ?? "?") — \(event.kindLabel)")
         print("    \(source)")
     }
 }
@@ -105,10 +105,13 @@ func runEnrich(eventID: String?) async throws {
 
     let when = event.timestamp.map { $0.formatted(timestampFormat) } ?? "unknown time"
     print("Event \(event.id)")
-    print("  \(event.agentName ?? "?") — \(event.kind.label) — \(when)")
-    print("  Searching for file (this walks Downloads/Desktop/Documents/Applications)…")
+    print("  \(event.agentName ?? "?") — \(event.kindLabel) — \(when)")
+    print("  Searching for file (Downloads, Desktop, Documents, Applications, Messages/Mail attachments)…")
 
     let enrichment = await EventEnricher().enrich(event)
+    for note in enrichment.searchNotes {
+        print("  note: \(note)")
+    }
     switch enrichment.fileStatus {
     case .notFound:
         print("  File: not found (likely deleted — normal for older events)")

@@ -90,7 +90,7 @@ struct QuarantineListView: View {
                 }
             }
             HStack(spacing: 6) {
-                Text(event.kind.label)
+                Text(event.kindLabel)
                     .font(.caption2)
                     .padding(.horizontal, 5)
                     .padding(.vertical, 1)

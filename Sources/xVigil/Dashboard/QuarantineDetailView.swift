@@ -30,7 +30,7 @@ struct QuarantineDetailView: View {
             if let bundleID = event.agentBundleIdentifier {
                 CopyableRow(label: "Bundle ID", value: bundleID)
             }
-            LabeledContent("Type", value: event.kind.label)
+            LabeledContent("Type", value: event.kindLabel)
             if let timestamp = event.timestamp {
                 LabeledContent(
                     "Date",
@@ -75,11 +75,14 @@ struct QuarantineDetailView: View {
         switch enrichment.fileStatus {
         case .notFound:
             Label {
-                Text("File not found in common locations — likely deleted or moved. This is normal for older events.")
+                Text(enrichment.searchNotes.isEmpty
+                    ? "File not found — likely deleted or moved. This is normal for older events."
+                    : "File not found in the locations that could be searched.")
                     .foregroundStyle(.secondary)
             } icon: {
                 Image(systemName: "questionmark.folder")
             }
+            searchNoteRows(enrichment.searchNotes)
         case .found(let path):
             CopyableRow(label: "File", value: path)
             Button("Reveal in Finder") {
@@ -105,6 +108,18 @@ struct QuarantineDetailView: View {
             if let signature = enrichment.signature {
                 signatureRows(signature)
             }
+        }
+    }
+
+    @ViewBuilder
+    private func searchNoteRows(_ notes: [String]) -> some View {
+        ForEach(notes, id: \.self) { note in
+            Label {
+                Text(note).font(.caption)
+            } icon: {
+                Image(systemName: "exclamationmark.triangle")
+            }
+            .foregroundStyle(.orange)
         }
     }
 

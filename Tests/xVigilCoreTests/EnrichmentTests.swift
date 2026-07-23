@@ -53,6 +53,71 @@ import Testing
 
         #expect(QuarantineFileLocator.quarantineEventID(of: file) == nil)
     }
+
+    @Test func reportsUnreadableDirectories() throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("xvigil-noaccess-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: dir.path)
+        defer {
+            try? FileManager.default.setAttributes(
+                [.posixPermissions: 0o755], ofItemAtPath: dir.path)
+            try? FileManager.default.removeItem(at: dir)
+        }
+
+        let locator = QuarantineFileLocator(searchDirectories: [dir])
+        let outcome = locator.search(eventID: UUID().uuidString)
+        #expect(outcome.url == nil)
+        #expect(outcome.unreadable.map { URL(fileURLWithPath: $0).lastPathComponent }
+            == [dir.lastPathComponent])
+        #expect(!outcome.truncated)
+    }
+
+    @Test func reportsTruncationWhenBudgetExhausted() throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("xvigil-budget-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        for index in 0..<5 {
+            try Data("x".utf8).write(to: dir.appendingPathComponent("file-\(index).txt"))
+        }
+
+        let locator = QuarantineFileLocator(searchDirectories: [dir], maxEntries: 2)
+        let outcome = locator.search(eventID: UUID().uuidString)
+        #expect(outcome.url == nil)
+        #expect(outcome.truncated)
+    }
+
+    @Test func findsDeeplyNestedAttachments() throws {
+        // Messages nests attachments four levels down; default depth must
+        // reach them.
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("xvigil-deep-\(UUID().uuidString)")
+        let nested = root.appendingPathComponent("ab/cd/EF012345/attachment")
+        try FileManager.default.createDirectory(at: nested, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let uuid = UUID().uuidString
+        let file = nested.appendingPathComponent("photo.heic")
+        try Data("img".utf8).write(to: file)
+        let xattrValue = "0083;686d3c1f;Messages;\(uuid)"
+        _ = xattrValue.withCString {
+            setxattr(file.path, "com.apple.quarantine", $0, strlen($0), 0, 0)
+        }
+
+        let locator = QuarantineFileLocator(searchDirectories: [root])
+        #expect(locator.locate(eventID: uuid)?.lastPathComponent == "photo.heic")
+    }
+
+    @Test func prioritizesDirectoriesByEventKind() {
+        let dirs = QuarantineFileLocator.defaultSearchDirectories
+        let forMessage = EventEnricher.prioritizedDirectories(dirs, for: .messageAttachment)
+        #expect(forMessage.first?.path.contains("Library/Messages") == true)
+        #expect(forMessage.count == dirs.count)
+
+        let forDownload = EventEnricher.prioritizedDirectories(dirs, for: .webDownload)
+        #expect(forDownload.map(\.path) == dirs.map(\.path))
+    }
 }
 
 @Suite struct EnricherParsingTests {
