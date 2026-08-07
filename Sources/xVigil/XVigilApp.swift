@@ -22,6 +22,19 @@ struct XVigilApp: App {
             monitor: monitor, scanner: scanner, watchlist: watchlist))
     }
 
+    /// Always suppressed in release. Debug builds honor XVIGIL_UITEST, which
+    /// opens the dashboard at launch so the real view layer can be exercised
+    /// headlessly — the only way to catch view-level bugs like a `.task` that
+    /// never re-runs, which no model-level test can see.
+    private static var dashboardLaunchBehavior: SceneLaunchBehavior {
+        #if DEBUG
+            if ProcessInfo.processInfo.environment["XVIGIL_UITEST"] != nil {
+                return .presented
+            }
+        #endif
+        return .suppressed
+    }
+
     var body: some Scene {
         MenuBarExtra {
             MenuBarView(model: model, dashboard: dashboard, monitor: monitor, updates: updates)
@@ -36,7 +49,7 @@ struct XVigilApp: App {
         }
         .defaultSize(width: 960, height: 600)
         // Menu bar app: the dashboard opens on demand, not at launch.
-        .defaultLaunchBehavior(.suppressed)
+        .defaultLaunchBehavior(Self.dashboardLaunchBehavior)
         .commands {
             // Show the programmatic icon (the same drawing as the Dock icon)
             // in the About panel. Running via `swift run` there is no bundle

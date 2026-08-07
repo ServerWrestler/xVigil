@@ -248,9 +248,4 @@ final class WatchlistController {
         }
     }
 
-    var alertCount: Int {
-        checkState.values.reduce(0) { total, state in
-            total + state.findings.count(where: \.isAlert)
-        }
-    }
 }

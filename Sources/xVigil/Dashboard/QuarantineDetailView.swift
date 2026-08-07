@@ -13,10 +13,15 @@ struct QuarantineDetailView: View {
         }
         .formStyle(.grouped)
         .navigationSubtitle(event.agentName ?? "Quarantine event")
-        // .id(event.id) resets scroll and task state per event; the model
-        // caches results so revisiting an event is instant.
+        // Resets scroll position when the selected event changes.
         .id(event.id)
-        .task {
+        // MUST be .task(id:), not a bare .task. `.id()` above changes the
+        // identity of the view it wraps, but this modifier is applied
+        // outside that scope — with a bare .task SwiftUI keeps the original
+        // task and never re-runs it, so selecting a second event never
+        // started its lookups and both fields spun forever. The explicit id
+        // re-runs the work per event regardless of modifier ordering.
+        .task(id: event.id) {
             model.enrichIfNeeded(event)
             model.loadRelatedLogsIfNeeded(for: event)
         }

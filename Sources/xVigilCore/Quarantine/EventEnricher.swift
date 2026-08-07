@@ -42,6 +42,30 @@ public struct CodeSignature: Equatable, Sendable {
     public let problem: String?
 }
 
+/// Delivers the first of two racing producers (blocking work vs. a timeout)
+/// to a continuation exactly once; later arrivals are dropped.
+private final class ResumeOnce<T: Sendable>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<T, Never>?
+    private var timer: DispatchSourceTimer?
+
+    func attach(_ continuation: CheckedContinuation<T, Never>) {
+        lock.lock(); self.continuation = continuation; lock.unlock()
+    }
+    func retainTimer(_ timer: DispatchSourceTimer) {
+        lock.lock(); self.timer = timer; lock.unlock()
+    }
+    func resume(_ value: T) {
+        lock.lock()
+        guard let continuation else { lock.unlock(); return }
+        self.continuation = nil
+        timer?.cancel()
+        timer = nil
+        lock.unlock()
+        continuation.resume(returning: value)
+    }
+}
+
 /// Enriches a quarantine event with on-disk evidence: locates the file via
 /// its quarantine xattr, then asks Gatekeeper and codesign for a verdict.
 public struct EventEnricher: Sendable {
@@ -51,17 +75,59 @@ public struct EventEnricher: Sendable {
         self.locator = locator
     }
 
-    /// Slow (filesystem walk plus subprocess calls). The blocking work runs
-    /// on a GCD thread so it never occupies the cooperative pool. QoS is
-    /// userInitiated: the only caller is the detail pane, where the user is
-    /// actively waiting — utility would land the walk on efficiency cores
-    /// and visibly drag it out.
+    /// Hard wall-clock ceiling on the whole enrichment. The in-walk
+    /// cooperative deadline can't interrupt a blocked syscall (a stalled
+    /// mount, or an iCloud file mid-materialization), so a wedged walk would
+    /// otherwise spin the "On disk" field forever. This races the blocking
+    /// work against a timer and returns a definite answer either way.
+    public static let hardTimeout: TimeInterval = 15
+
+    /// Dedicated queue so a wedged walk can't consume shared global-pool
+    /// threads that other work (log queries) needs.
+    private static let walkQueue = DispatchQueue(
+        label: "io.xvigil.enrich", qos: .userInitiated, attributes: .concurrent)
+
+    /// Slow (filesystem walk plus subprocess calls). Runs off the cooperative
+    /// pool on a dedicated queue, and always returns within `hardTimeout`.
     public func enrich(_ event: QuarantineEvent) async -> EventEnrichment {
         let locator = self.locator
+        return await Self.withHardTimeout(
+            seconds: Self.hardTimeout,
+            work: { Self.enrichBlocking(event, locator: locator) },
+            onTimeout: { Self.timedOutEnrichment(after: Self.hardTimeout) })
+    }
+
+    static func timedOutEnrichment(after seconds: TimeInterval) -> EventEnrichment {
+        EventEnrichment(
+            fileStatus: .notFound,
+            searchNotes: ["Search timed out after \(Int(seconds))s — a file "
+                + "(often an iCloud or network item) was slow to read. "
+                + "The file may still exist locally."],
+            assessment: nil, signature: nil)
+    }
+
+    /// Runs blocking `work` on the dedicated walk queue and returns its result,
+    /// or `onTimeout()` if `work` hasn't finished within `seconds`. A wedged
+    /// `work` (blocked syscall) is abandoned: it keeps running and leaks its
+    /// thread, but the caller resumes at the timeout regardless — the UI is
+    /// never held hostage to a stuck read. A structured task group can't do
+    /// this (it awaits all children at scope exit, so a wedged child blocks
+    /// the return); this races a single continuation instead. Generic so the
+    /// behavior is unit-testable without a real filesystem wedge.
+    static func withHardTimeout<T: Sendable>(
+        seconds: TimeInterval,
+        work: @escaping @Sendable () -> T,
+        onTimeout: @escaping @Sendable () -> T
+    ) async -> T {
+        let gate = ResumeOnce<T>()
         return await withCheckedContinuation { continuation in
-            DispatchQueue.global(qos: .userInitiated).async {
-                continuation.resume(returning: Self.enrichBlocking(event, locator: locator))
-            }
+            gate.attach(continuation)
+            walkQueue.async { gate.resume(work()) }
+            let timer = DispatchSource.makeTimerSource(queue: .global())
+            timer.schedule(deadline: .now() + seconds)
+            timer.setEventHandler { gate.resume(onTimeout()) }
+            timer.activate()
+            gate.retainTimer(timer)
         }
     }
 

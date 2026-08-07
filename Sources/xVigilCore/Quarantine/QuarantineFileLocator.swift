@@ -89,9 +89,10 @@ public struct QuarantineFileLocator: Sendable {
 
             // .skipsPackageDescendants: .app bundles carry the xattr on the
             // bundle directory itself, so there is no need to look inside.
+            // Prefetch the iCloud flag so we can cheaply skip evicted files.
             guard let enumerator = FileManager.default.enumerator(
                 at: directory,
-                includingPropertiesForKeys: nil,
+                includingPropertiesForKeys: [.isUbiquitousItemKey],
                 options: [.skipsHiddenFiles, .skipsPackageDescendants]
             ) else { continue }
 
@@ -109,17 +110,21 @@ public struct QuarantineFileLocator: Sendable {
                 if examined % 256 == 0, Date() > deadline {
                     return Outcome(url: nil, unreadable: unreadable, truncated: true)
                 }
+                // Skip iCloud-evicted "dataless" files: reading their xattrs
+                // can block for seconds while macOS materializes them from the
+                // cloud, wedging the walk mid-syscall where the cooperative
+                // deadline can't interrupt it. A quarantined download we'd
+                // want is a real local file anyway.
+                if (try? url.resourceValues(forKeys: [.isUbiquitousItemKey]))?
+                    .isUbiquitousItem == true {
+                    continue
+                }
                 if Self.quarantineEventID(of: url)?.uppercased() == target {
                     return Outcome(url: url, unreadable: unreadable, truncated: false)
                 }
             }
         }
         return Outcome(url: nil, unreadable: unreadable, truncated: false)
-    }
-
-    /// Convenience for callers that only need the location.
-    public func locate(eventID: String) -> URL? {
-        search(eventID: eventID).url
     }
 
     /// Reads the event UUID out of a file's `com.apple.quarantine` xattr,

@@ -218,20 +218,141 @@ public enum Subprocess {
         return stream
     }
 
-    /// Async variant that parks the blocking wait on a GCD thread. Long `log
-    /// show` queries must never occupy the cooperative pool: its width is the
-    /// CPU core count, and a few blocked threads starve every Task in the app.
+    /// Fully non-blocking async run: collects output via readability handlers
+    /// and resumes on the process's termination handler, so a subprocess
+    /// occupies **zero** worker threads while it runs. The previous
+    /// implementation blocked three `.userInitiated` GCD threads per call
+    /// (the wait plus two pipe drains); several concurrent `log show` queries
+    /// then starved the pool, and a freshly-clicked event's enrich walk or
+    /// log query could never get scheduled — both detail fields spun forever.
     public static func runAsync(
         _ executablePath: String,
         arguments: [String],
         timeout: TimeInterval? = nil
     ) async throws -> SubprocessResult {
-        try await withCheckedThrowingContinuation { continuation in
-            DispatchQueue.global(qos: .userInitiated).async {
-                continuation.resume(with: Result {
-                    try run(executablePath, arguments: arguments, timeout: timeout)
-                })
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: executablePath)
+        process.arguments = arguments
+        let outPipe = Pipe()
+        let errPipe = Pipe()
+        process.standardOutput = outPipe
+        process.standardError = errPipe
+
+        let collector = OutputCollector()
+        let commandName = URL(fileURLWithPath: executablePath).lastPathComponent
+
+        return try await withCheckedThrowingContinuation { continuation in
+            collector.attach(continuation, command: commandName, timeout: timeout ?? 0)
+
+            outPipe.fileHandleForReading.readabilityHandler = { handle in
+                let data = handle.availableData
+                if data.isEmpty {
+                    handle.readabilityHandler = nil
+                    collector.finishStdout()
+                } else {
+                    collector.appendStdout(data)
+                }
             }
+            errPipe.fileHandleForReading.readabilityHandler = { handle in
+                let data = handle.availableData
+                if data.isEmpty {
+                    handle.readabilityHandler = nil
+                    collector.finishStderr()
+                } else {
+                    collector.appendStderr(data)
+                }
+            }
+            process.terminationHandler = { finished in
+                collector.processExited(status: finished.terminationStatus)
+            }
+
+            if let timeout {
+                let box = ProcessBox(process)
+                let timer = DispatchSource.makeTimerSource(queue: .global())
+                timer.schedule(deadline: .now() + timeout)
+                timer.setEventHandler {
+                    collector.markTimedOut()
+                    if box.process.isRunning { box.process.terminate() }
+                }
+                timer.activate()
+                collector.retainTimer(timer)
+            }
+
+            do {
+                try process.run()
+            } catch {
+                continuation.resume(throwing: error)
+                collector.disarm()
+            }
+        }
+    }
+}
+
+/// Accumulates a subprocess's stdout/stderr from readability handlers and
+/// resumes the continuation once the process has exited AND both pipes have
+/// hit EOF — so no trailing output is lost. Thread-safe; no blocked threads.
+private final class OutputCollector: @unchecked Sendable {
+    private let lock = NSLock()
+    private var out = Data()
+    private var err = Data()
+    private var outEOF = false
+    private var errEOF = false
+    private var exitStatus: Int32?
+    private var timedOut = false
+    private var resumed = false
+    private var continuation: CheckedContinuation<SubprocessResult, Error>?
+    private var command = ""
+    private var timeout: TimeInterval = 0
+    private var timer: DispatchSourceTimer?
+
+    func attach(
+        _ continuation: CheckedContinuation<SubprocessResult, Error>,
+        command: String, timeout: TimeInterval
+    ) {
+        lock.lock()
+        self.continuation = continuation
+        self.command = command
+        self.timeout = timeout
+        lock.unlock()
+    }
+
+    func retainTimer(_ timer: DispatchSourceTimer) {
+        lock.lock(); self.timer = timer; lock.unlock()
+    }
+
+    func appendStdout(_ data: Data) { lock.lock(); out.append(data); lock.unlock() }
+    func appendStderr(_ data: Data) { lock.lock(); err.append(data); lock.unlock() }
+    func finishStdout() { lock.lock(); outEOF = true; lock.unlock(); resumeIfComplete() }
+    func finishStderr() { lock.lock(); errEOF = true; lock.unlock(); resumeIfComplete() }
+    func processExited(status: Int32) {
+        lock.lock(); exitStatus = status; lock.unlock(); resumeIfComplete()
+    }
+    func markTimedOut() { lock.lock(); timedOut = true; lock.unlock() }
+
+    /// Called if `process.run()` throws — nothing will ever complete.
+    func disarm() {
+        lock.lock(); resumed = true; timer?.cancel(); timer = nil; lock.unlock()
+    }
+
+    private func resumeIfComplete() {
+        lock.lock()
+        guard !resumed, exitStatus != nil, outEOF, errEOF,
+            let continuation else { lock.unlock(); return }
+        resumed = true
+        timer?.cancel()
+        timer = nil
+        let result = SubprocessResult(status: exitStatus!, stdout: out, stderr: err)
+        let didTimeOut = timedOut
+        let command = command
+        let timeout = timeout
+        self.continuation = nil
+        lock.unlock()
+
+        if didTimeOut {
+            continuation.resume(throwing: SubprocessError.timedOut(
+                command: command, seconds: timeout))
+        } else {
+            continuation.resume(returning: result)
         }
     }
 }

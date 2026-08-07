@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Observation
 import xVigilCore
@@ -81,11 +82,14 @@ final class DashboardModel {
         self.monitor = monitor
         self.scanner = scanner
         self.watchlist = watchlist
-        // Headless self-check inside the real GUI process (debug builds only):
-        //   XVIGIL_SMOKE=1 .build/debug/xVigil
+        // Headless self-checks inside the real GUI process (debug builds only):
+        //   XVIGIL_SMOKE=1 .build/debug/xVigil   — one event, all panes
         #if DEBUG
             if ProcessInfo.processInfo.environment["XVIGIL_SMOKE"] != nil {
                 Task { await runSmokeTest() }
+            }
+            if ProcessInfo.processInfo.environment["XVIGIL_UITEST"] != nil {
+                Task { await runUITest() }
             }
         #endif
     }
@@ -193,9 +197,12 @@ final class DashboardModel {
         let reader = XProtectLogReader()
         Task {
             do {
+                // A ±60s window is small; cap at 45s so a slow archive scan
+                // fails visibly instead of spinning toward the 120s default.
                 let entries = try await reader.entries(
                     from: timestamp.addingTimeInterval(-window),
-                    to: timestamp.addingTimeInterval(window))
+                    to: timestamp.addingTimeInterval(window),
+                    timeout: 45)
                 self.relatedLogs[event.id] = .loaded(entries)
             } catch {
                 self.relatedLogs[event.id] = .failed(error.localizedDescription)
@@ -244,6 +251,60 @@ final class DashboardModel {
     // MARK: - Headless smoke test (XVIGIL_SMOKE=1, debug builds only)
 
     #if DEBUG
+    /// Unbuffered debug output, so a running app's log survives redirection.
+    nonisolated static func trace(_ message: String) {
+        FileHandle.standardError.write(Data("[trace] \(message)\n".utf8))
+    }
+
+    /// Selects a real event so the REAL SwiftUI detail pane renders and fires
+    /// its own `.task` (no model calls faked here), then logs model state
+    /// every second. Pair with a screenshot: if the model reports `.loaded`
+    /// while the window still shows a spinner, the bug is in the view layer,
+    /// not the async work. The app stays alive for inspection.
+    private func runUITest() async {
+        let started = Date()
+        func stamp(_ message: String) {
+            Self.trace(String(format: "[ui %5.1fs] %@", Date().timeIntervalSince(started), message))
+        }
+        // Click through a spread of real events — including older ones whose
+        // files are long gone, which is the user's reported failure case.
+        guard let candidates = try? store.recentEvents(limit: 60), !candidates.isEmpty else {
+            stamp("no events"); return
+        }
+        let sample = stride(from: 0, to: min(candidates.count, 60), by: 6).map { candidates[$0] }
+        try? await Task.sleep(for: .seconds(2))  // let the window finish opening
+        stamp("clicking \(sample.count) events with the window OPEN")
+
+        var worst: TimeInterval = 0
+        for (index, event) in sample.enumerated() {
+            let clicked = Date()
+            select(event)  // exactly what a row click does
+            NSApplication.shared.activate(ignoringOtherApps: true)
+
+            var enrichDone = false
+            var logsDone = event.timestamp == nil
+            while Date().timeIntervalSince(clicked) < 60 {
+                if case .loaded = enrichments[event.id] { enrichDone = true }
+                switch relatedLogs[event.id] {
+                case .loaded, .failed: logsDone = true
+                default: break
+                }
+                if enrichDone && logsDone { break }
+                try? await Task.sleep(for: .milliseconds(200))
+            }
+            let elapsed = Date().timeIntervalSince(clicked)
+            worst = max(worst, elapsed)
+            let when = event.timestamp.map {
+                $0.formatted(date: .abbreviated, time: .shortened)
+            } ?? "no date"
+            stamp(String(format: "%2d. %@ %@ — %.1fs %@",
+                index + 1, when, event.id.prefix(8).description, elapsed,
+                enrichDone && logsDone
+                    ? "ok" : "HUNG (enrich:\(enrichDone) logs:\(logsDone))"))
+        }
+        stamp(String(format: "worst case %.1fs — window stays open for inspection", worst))
+    }
+
     /// Exercises the exact model paths the detail pane uses, inside the real
     /// NSApplication process, then exits. Exists because the async plumbing
     /// (cooperative pool vs GCD) behaves differently in a GUI app than in

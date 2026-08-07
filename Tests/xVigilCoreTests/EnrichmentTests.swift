@@ -30,10 +30,10 @@ import Testing
         // paths the test created via the /var symlink.
         let expected = file.resolvingSymlinksInPath().path
         let locator = QuarantineFileLocator(searchDirectories: [dir])
-        #expect(locator.locate(eventID: uuid)?.resolvingSymlinksInPath().path == expected)
+        #expect(locator.search(eventID: uuid).url?.resolvingSymlinksInPath().path == expected)
         // Case-insensitive match: the DB stores uppercase UUIDs.
-        #expect(locator.locate(eventID: uuid.lowercased())?.resolvingSymlinksInPath().path == expected)
-        #expect(locator.locate(eventID: UUID().uuidString) == nil)
+        #expect(locator.search(eventID: uuid.lowercased()).url?.resolvingSymlinksInPath().path == expected)
+        #expect(locator.search(eventID: UUID().uuidString).url == nil)
     }
 
     @Test func readsEventIDFromXattr() throws {
@@ -106,7 +106,7 @@ import Testing
         }
 
         let locator = QuarantineFileLocator(searchDirectories: [root])
-        #expect(locator.locate(eventID: uuid)?.lastPathComponent == "photo.heic")
+        #expect(locator.search(eventID: uuid).url?.lastPathComponent == "photo.heic")
     }
 
     @Test func prioritizesDirectoriesByEventKind() {
@@ -117,6 +117,35 @@ import Testing
 
         let forDownload = EventEnricher.prioritizedDirectories(dirs, for: .webDownload)
         #expect(forDownload.map(\.path) == dirs.map(\.path))
+    }
+}
+
+@Suite struct EnricherTimeoutTests {
+    /// A wedged walk (blocks far past the timeout) must not hang the caller:
+    /// the hard timeout returns a definite answer promptly. This is the fix
+    /// for "On disk spins forever" on iCloud/network files where the walk
+    /// blocks inside a syscall the cooperative deadline can't interrupt.
+    @Test func timeoutReturnsWhenWorkWedges() async {
+        let started = Date()
+        let result = await EventEnricher.withHardTimeout(
+            seconds: 0.5,
+            work: {
+                Thread.sleep(forTimeInterval: 30)  // simulates a blocked syscall
+                return "walk"
+            },
+            onTimeout: { "timed-out" })
+        let elapsed = Date().timeIntervalSince(started)
+        #expect(result == "timed-out")
+        #expect(elapsed < 5)  // returns near the 0.5s budget, not 30s
+    }
+
+    /// Fast work returns its own result well within the budget.
+    @Test func fastWorkReturnsItsResult() async {
+        let result = await EventEnricher.withHardTimeout(
+            seconds: 5,
+            work: { "walk" },
+            onTimeout: { "timed-out" })
+        #expect(result == "walk")
     }
 }
 
