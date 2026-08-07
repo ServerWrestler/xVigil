@@ -7,11 +7,13 @@ public struct Finding: Identifiable, Hashable, Sendable {
     public enum Source: String, Sendable {
         case xprotect
         case scan
+        case fileMonitor
 
         public var label: String {
             switch self {
             case .xprotect: "XProtect"
             case .scan: "On-demand scan"
+            case .fileMonitor: "File Monitor"
             }
         }
     }

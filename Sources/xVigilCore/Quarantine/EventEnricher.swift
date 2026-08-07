@@ -52,11 +52,14 @@ public struct EventEnricher: Sendable {
     }
 
     /// Slow (filesystem walk plus subprocess calls). The blocking work runs
-    /// on a GCD thread so it never occupies the cooperative pool.
+    /// on a GCD thread so it never occupies the cooperative pool. QoS is
+    /// userInitiated: the only caller is the detail pane, where the user is
+    /// actively waiting — utility would land the walk on efficiency cores
+    /// and visibly drag it out.
     public func enrich(_ event: QuarantineEvent) async -> EventEnrichment {
         let locator = self.locator
         return await withCheckedContinuation { continuation in
-            DispatchQueue.global(qos: .utility).async {
+            DispatchQueue.global(qos: .userInitiated).async {
                 continuation.resume(returning: Self.enrichBlocking(event, locator: locator))
             }
         }
@@ -71,7 +74,7 @@ public struct EventEnricher: Sendable {
             locator.searchDirectories, for: event.kind)
 
         let outcome = prioritized.search(eventID: event.id)
-        let notes = searchNotes(for: outcome, maxEntries: prioritized.maxEntries)
+        let notes = searchNotes(for: outcome, locator: prioritized)
 
         guard let url = outcome.url else {
             return EventEnrichment(
@@ -104,7 +107,7 @@ public struct EventEnricher: Sendable {
 
     private static func searchNotes(
         for outcome: QuarantineFileLocator.Outcome,
-        maxEntries: Int
+        locator: QuarantineFileLocator
     ) -> [String] {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         var notes = outcome.unreadable.map { path in
@@ -114,7 +117,9 @@ public struct EventEnricher: Sendable {
                 + "(System Settings → Privacy & Security) to include it."
         }
         if outcome.truncated {
-            notes.append("Search stopped after examining \(maxEntries) files.")
+            notes.append(
+                "Search stopped early (budget: \(locator.maxEntries) files / "
+                + "\(Int(locator.maxSeconds))s) — the file may exist in an unsearched spot.")
         }
         return notes
     }

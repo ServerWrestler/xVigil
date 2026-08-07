@@ -13,6 +13,7 @@ final class DashboardModel {
         case quarantine = "Quarantine Events"
         case activity = "XProtect Activity"
         case scan = "On-Demand Scan"
+        case fileMonitor = "File Monitor"
         case status = "Protection Status"
     }
 
@@ -35,6 +36,7 @@ final class DashboardModel {
 
     private(set) var events: [QuarantineEvent] = []
     private(set) var agents: [String] = []
+    private(set) var typeNumbers: [Int] = []
     private(set) var hasMore = false
     private(set) var isLoading = false
     private(set) var errorMessage: String?
@@ -42,7 +44,7 @@ final class DashboardModel {
 
     var searchText: String = ""
     var agentFilter: String?
-    var kindFilter: QuarantineEvent.Kind?
+    var typeFilter: Int?
 
     /// Enrichment and related-log results, cached per event ID so selection
     /// changes never re-run the filesystem walk or log query.
@@ -71,12 +73,14 @@ final class DashboardModel {
 
     let monitor: DetectionMonitor
     let scanner: ScanController
+    let watchlist: WatchlistController
     private let store = QuarantineStore()
     private var searchDebounce: Task<Void, Never>?
 
-    init(monitor: DetectionMonitor, scanner: ScanController) {
+    init(monitor: DetectionMonitor, scanner: ScanController, watchlist: WatchlistController) {
         self.monitor = monitor
         self.scanner = scanner
+        self.watchlist = watchlist
         // Headless self-check inside the real GUI process (debug builds only):
         //   XVIGIL_SMOKE=1 .build/debug/xVigil
         #if DEBUG
@@ -93,7 +97,11 @@ final class DashboardModel {
         reloadEvents()
         let store = self.store
         Task {
-            self.agents = (try? await Task.detached { try store.distinctAgents() }.value) ?? []
+            let options = try? await Task.detached {
+                (try store.distinctAgents(), try store.distinctTypeNumbers())
+            }.value
+            self.agents = options?.0 ?? []
+            self.typeNumbers = options?.1 ?? []
         }
     }
 
@@ -230,7 +238,7 @@ final class DashboardModel {
     }
 
     private var currentFilter: QuarantineFilter {
-        QuarantineFilter(agentName: agentFilter, kind: kindFilter, searchText: searchText)
+        QuarantineFilter(agentName: agentFilter, typeNumber: typeFilter, searchText: searchText)
     }
 
     // MARK: - Headless smoke test (XVIGIL_SMOKE=1, debug builds only)
@@ -257,6 +265,7 @@ final class DashboardModel {
         enrichIfNeeded(event)
         loadRelatedLogsIfNeeded(for: event)
         loadActivities()
+        loadInitialIfNeeded()
 
         let availability = await ClamAVEngine().availability()
         stamp("scan engine: installed=\(availability.installed)"
@@ -266,8 +275,14 @@ final class DashboardModel {
         var enrichDone = false
         var logsDone = false
         var activitiesDone = false
+        var listDone = false
         while Date().timeIntervalSince(started) < 300 {
             try? await Task.sleep(for: .seconds(2))
+            if !listDone, !isLoading, !events.isEmpty {
+                listDone = true
+                stamp("quarantine list: \(events.count) events loaded, "
+                    + "\(agents.count) agents, types \(typeNumbers.map(String.init).joined(separator: "/"))")
+            }
             if !enrichDone, case .loaded(let enrichment)? = enrichments[event.id] {
                 enrichDone = true
                 stamp("enrichment finished: \(enrichment.fileStatus)")
@@ -288,12 +303,13 @@ final class DashboardModel {
                 stamp("activities finished: \(activities.count) clusters"
                     + (activitiesError.map { " (error: \($0))" } ?? ""))
             }
-            if enrichDone && logsDone && activitiesDone {
+            if enrichDone && logsDone && activitiesDone && listDone {
                 stamp("SMOKE PASS")
                 exit(0)
             }
         }
-        stamp("SMOKE TIMEOUT — enrich:\(enrichDone) logs:\(logsDone) activities:\(activitiesDone)")
+        stamp("SMOKE TIMEOUT — enrich:\(enrichDone) logs:\(logsDone) "
+            + "activities:\(activitiesDone) list:\(listDone)")
         exit(1)
     }
     #endif

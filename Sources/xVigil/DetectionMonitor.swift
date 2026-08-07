@@ -10,17 +10,20 @@ import xVigilCore
 final class DetectionMonitor {
     private(set) var xprotectFindings: [Finding] = []
     private(set) var scanFindings: [Finding] = []
+    private(set) var fileMonitorFindings: [Finding] = []
     private(set) var lastSweep: Date?
     private(set) var isSweeping = false
 
-    /// Newest first, both sources merged.
+    /// Newest first, all sources merged.
     var findings: [Finding] {
-        (scanFindings + xprotectFindings).sorted {
+        (scanFindings + fileMonitorFindings + xprotectFindings).sorted {
             ($0.date ?? .distantPast) > ($1.date ?? .distantPast)
         }
     }
 
-    var count: Int { xprotectFindings.count + scanFindings.count }
+    var count: Int {
+        xprotectFindings.count + scanFindings.count + fileMonitorFindings.count
+    }
 
     private var started = false
     private static let sweepWindow = "24h"
@@ -55,5 +58,11 @@ final class DetectionMonitor {
     /// streams results; each new scan starts from its own empty list).
     func setScanFindings(_ findings: [Finding]) {
         scanFindings = findings
+    }
+
+    /// Replaces the file-monitor findings (called after each watchlist
+    /// check pass; each pass starts from its own empty list).
+    func setFileMonitorFindings(_ findings: [Finding]) {
+        fileMonitorFindings = findings
     }
 }

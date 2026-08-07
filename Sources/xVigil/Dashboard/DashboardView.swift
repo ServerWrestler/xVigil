@@ -27,6 +27,8 @@ struct DashboardView: View {
                     ActivityListView(model: model)
                 case .scan:
                     ScanPaneView(model: model)
+                case .fileMonitor:
+                    FileMonitorPaneView(model: model)
                 case .status:
                     StatusPaneView(model: model, updates: updates)
                 }
@@ -56,6 +58,8 @@ struct DashboardView: View {
                 }
             case .scan:
                 placeholder("On-demand scanning")
+            case .fileMonitor:
+                placeholder("File monitor")
             case .status:
                 placeholder("Protection status")
             }
@@ -90,6 +94,7 @@ struct DashboardView: View {
         case .quarantine: "tray.full"
         case .activity: "waveform.path.ecg"
         case .scan: "magnifyingglass.circle"
+        case .fileMonitor: "eye.circle"
         case .status: "shield.lefthalf.filled"
         }
     }

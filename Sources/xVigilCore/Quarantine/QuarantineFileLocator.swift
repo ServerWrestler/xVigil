@@ -28,6 +28,10 @@ public struct QuarantineFileLocator: Sendable {
     public var maxDepth: Int
     /// Upper bound on filesystem entries examined, as a runaway guard.
     public var maxEntries: Int
+    /// Wall-clock budget for the whole search. The user is usually staring
+    /// at a spinner while this runs; past this point an honest "stopped
+    /// early" beats a complete-but-glacial answer.
+    public var maxSeconds: TimeInterval
 
     public static var defaultSearchDirectories: [URL] {
         let home = FileManager.default.homeDirectoryForCurrentUser
@@ -50,17 +54,20 @@ public struct QuarantineFileLocator: Sendable {
     public init(
         searchDirectories: [URL] = QuarantineFileLocator.defaultSearchDirectories,
         maxDepth: Int = 5,
-        maxEntries: Int = 50_000
+        maxEntries: Int = 50_000,
+        maxSeconds: TimeInterval = 10
     ) {
         self.searchDirectories = searchDirectories
         self.maxDepth = maxDepth
         self.maxEntries = maxEntries
+        self.maxSeconds = maxSeconds
     }
 
     /// Scans the search directories for a file whose quarantine xattr matches
     /// `eventID`. Slow (filesystem walk) — call off the main thread.
     public func search(eventID: String) -> Outcome {
         let target = eventID.uppercased()
+        let deadline = Date().addingTimeInterval(maxSeconds)
         var examined = 0
         var unreadable: [String] = []
 
@@ -95,6 +102,11 @@ public struct QuarantineFileLocator: Sendable {
                 }
                 examined += 1
                 if examined > maxEntries {
+                    return Outcome(url: nil, unreadable: unreadable, truncated: true)
+                }
+                // Check the clock every 256 entries — Date() per entry would
+                // itself be measurable across tens of thousands of files.
+                if examined % 256 == 0, Date() > deadline {
                     return Outcome(url: nil, unreadable: unreadable, truncated: true)
                 }
                 if Self.quarantineEventID(of: url)?.uppercased() == target {

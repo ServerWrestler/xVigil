@@ -8,7 +8,6 @@ import xVigilCore
 @Observable
 final class VigilModel {
     private(set) var status: SystemStatus?
-    private(set) var recentEvents: [QuarantineEvent] = []
     private(set) var totalEventCount: Int = 0
     private(set) var lastRefreshed: Date?
     private(set) var errorMessage: String?
@@ -25,14 +24,13 @@ final class VigilModel {
         Task {
             do {
                 // Status blocks on spctl, so it loads via GCD; the SQLite
-                // reads are fast enough for a detached task.
+                // read is fast enough for a detached task.
                 async let status = SystemStatus.load()
-                let loaded = try await Task.detached(priority: .userInitiated) {
-                    (try store.recentEvents(limit: 20), try store.eventCount())
+                let count = try await Task.detached(priority: .userInitiated) {
+                    try store.eventCount()
                 }.value
                 self.status = await status
-                self.recentEvents = loaded.0
-                self.totalEventCount = loaded.1
+                self.totalEventCount = count
                 self.lastRefreshed = Date()
             } catch {
                 self.errorMessage = error.localizedDescription

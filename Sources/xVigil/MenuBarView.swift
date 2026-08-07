@@ -125,69 +125,18 @@ struct MenuBarView: View {
     }
 
     private var quarantineSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text("Recent quarantine events")
-                    .font(.subheadline.weight(.semibold))
-                Spacer()
-                Text("\(model.totalEventCount) total")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
+        HStack {
+            Text("Quarantine events")
+                .font(.subheadline.weight(.semibold))
+            Spacer()
             if let errorMessage = model.errorMessage {
                 Text(errorMessage)
                     .font(.caption)
                     .foregroundStyle(.red)
-            } else if model.recentEvents.isEmpty {
-                Text("No quarantine events found.")
+            } else {
+                Text("\(model.totalEventCount) on record")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-            } else {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 6) {
-                        ForEach(model.recentEvents.prefix(10)) { event in
-                            Button {
-                                openDashboard(selecting: event)
-                            } label: {
-                                eventRow(event)
-                                    .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
-                            .help("Open in dashboard")
-                        }
-                    }
-                }
-                .frame(maxHeight: 220)
-            }
-        }
-    }
-
-    private func eventRow(_ event: QuarantineEvent) -> some View {
-        VStack(alignment: .leading, spacing: 1) {
-            HStack {
-                Text(event.agentName ?? "Unknown agent")
-                    .font(.callout.weight(.medium))
-                Spacer()
-                if let timestamp = event.timestamp {
-                    Text(timestamp, format: .relative(presentation: .named))
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            HStack(spacing: 4) {
-                Text(event.kindLabel)
-                    .font(.caption2)
-                    .padding(.horizontal, 4)
-                    .padding(.vertical, 1)
-                    .background(.quaternary, in: Capsule())
-                if let url = event.dataURL ?? event.originURL {
-                    Text(url)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                }
             }
         }
     }
@@ -195,7 +144,7 @@ struct MenuBarView: View {
     private var footer: some View {
         HStack {
             Button("Dashboard…") {
-                openDashboard(selecting: nil)
+                openDashboard()
             }
             .font(.caption)
             Spacer()
@@ -212,10 +161,7 @@ struct MenuBarView: View {
         }
     }
 
-    private func openDashboard(selecting event: QuarantineEvent?) {
-        if let event {
-            dashboard.select(event)
-        }
+    private func openDashboard() {
         openWindow(id: "dashboard")
         // Accessory apps don't come forward on their own.
         NSApplication.shared.activate()

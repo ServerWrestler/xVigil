@@ -96,10 +96,17 @@ private func withStore<T>(
         }
     }
 
-    @Test func filtersByKind() throws {
+    @Test func filtersByTypeNumber() throws {
         try withStore { store in
-            let downloads = try store.events(matching: QuarantineFilter(kind: .webDownload))
+            let downloads = try store.events(matching: QuarantineFilter(typeNumber: 0))
             #expect(downloads.map(\.id) == ["AAAA-1", "AAAA-3"])
+        }
+    }
+
+    @Test func listsDistinctTypeNumbers() throws {
+        try withStore { store in
+            let types = try store.distinctTypeNumbers()
+            #expect(types == [0, 3])
         }
     }
 
@@ -120,7 +127,7 @@ private func withStore<T>(
     @Test func combinesFilters() throws {
         try withStore { store in
             let events = try store.events(
-                matching: QuarantineFilter(agentName: "Safari", kind: .webDownload))
+                matching: QuarantineFilter(agentName: "Safari", typeNumber: 0))
             #expect(events.map(\.id) == ["AAAA-3"])
         }
     }

@@ -52,10 +52,13 @@ public struct QuarantineEvent: Identifiable, Hashable, Sendable {
     /// (e.g. GarageBand content downloads record type 7); show the raw
     /// number for those rather than a vague "Unknown".
     public var kindLabel: String {
-        if kind == .unknown, let typeNumber {
-            return "Type \(typeNumber)"
-        }
-        return kind.label
+        typeNumber.map(Self.label(forType:)) ?? kind.label
+    }
+
+    /// Label for a raw type number — used by filter pickers built from the
+    /// type numbers actually present in the database.
+    public static func label(forType typeNumber: Int) -> String {
+        Kind(rawValue: typeNumber)?.label ?? "Type \(typeNumber)"
     }
 
     public enum Kind: Int, Sendable, CaseIterable {

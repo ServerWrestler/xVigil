@@ -29,16 +29,19 @@ struct QuarantineListView: View {
                         Text(agent).tag(String?.some(agent))
                     }
                 }
-                Picker("Type", selection: $model.kindFilter) {
-                    Text("All types").tag(QuarantineEvent.Kind?.none)
-                    ForEach(QuarantineEvent.Kind.allCases.filter { $0 != .unknown }, id: \.self) {
-                        Text($0.label).tag(QuarantineEvent.Kind?.some($0))
+                Picker("Type", selection: $model.typeFilter) {
+                    Text("All types").tag(Int?.none)
+                    // Data-driven: only type numbers that actually occur in
+                    // the database, so every choice matches something.
+                    ForEach(model.typeNumbers, id: \.self) { typeNumber in
+                        Text(QuarantineEvent.label(forType: typeNumber))
+                            .tag(Int?.some(typeNumber))
                     }
                 }
             }
             .labelsHidden()
             .onChange(of: model.agentFilter) { model.filtersChanged() }
-            .onChange(of: model.kindFilter) { model.filtersChanged() }
+            .onChange(of: model.typeFilter) { model.filtersChanged() }
         }
         .padding(10)
     }

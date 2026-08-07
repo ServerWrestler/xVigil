@@ -74,9 +74,9 @@ public struct QuarantineStore: Sendable {
             clauses.append("LSQuarantineAgentName = ?")
             values.append(.text(agent))
         }
-        if let kind = filter.kind, kind != .unknown {
+        if let typeNumber = filter.typeNumber {
             clauses.append("LSQuarantineTypeNumber = ?")
-            values.append(.integer(kind.rawValue))
+            values.append(.integer(typeNumber))
         }
         let search = filter.searchText.trimmingCharacters(in: .whitespaces)
         if !search.isEmpty {
@@ -140,6 +140,22 @@ public struct QuarantineStore: Sendable {
             bind([.text(id)], to: statement)
             guard sqlite3_step(statement) == SQLITE_ROW else { return nil }
             return event(from: statement)
+        }
+    }
+
+    /// Distinct LSQuarantineTypeNumber values present, for filter pickers —
+    /// the documented types (0–5) don't cover what macOS actually records.
+    public func distinctTypeNumbers() throws -> [Int] {
+        let sql = """
+            SELECT DISTINCT LSQuarantineTypeNumber FROM LSQuarantineEvent
+            WHERE LSQuarantineTypeNumber IS NOT NULL ORDER BY LSQuarantineTypeNumber
+            """
+        return try withStatement(sql) { statement in
+            var types: [Int] = []
+            while sqlite3_step(statement) == SQLITE_ROW {
+                types.append(Int(sqlite3_column_int64(statement, 0)))
+            }
+            return types
         }
     }
 
