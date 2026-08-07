@@ -28,8 +28,14 @@ swift run xvigil-cli engine         # ClamAV availability + signature age
 swift run xvigil-cli scan ~/Downloads   # on-demand scan (report-only)
 ```
 
-`XVIGIL_SMOKE=1 .build/debug/xVigil` runs a headless self-check of the
-dashboard's data paths inside the real GUI process (debug builds only).
+Two debug-only harnesses run inside the real GUI process:
+
+- `XVIGIL_SMOKE=1 .build/debug/xVigil` — headless self-check of the
+  dashboard's data paths (one event, every pane).
+- `XVIGIL_UITEST=1 .build/debug/xVigil` — opens the dashboard and selects a
+  spread of real events in turn, logging how long each takes to resolve.
+  Use this for anything the user sees: model-level checks pass happily while
+  the view is broken (see the `.task(id:)` note below).
 
 ## Implementation notes
 
@@ -55,6 +61,11 @@ dashboard's data paths inside the real GUI process (debug builds only).
 - Blocking work (subprocesses, filesystem walks, hashing) runs on GCD, never
   on Swift Concurrency's fixed-width cooperative pool — blocking it starves
   every task in the app.
+- SwiftUI: a bare `.task {}` placed *after* `.id(x)` sits outside the
+  identity `.id` establishes, so it runs once and never re-runs when `x`
+  changes. The quarantine detail pane needs `.task(id: event.id)`; without
+  it, selecting a second event never starts its lookups and the pane spins
+  forever. No model-level test catches this — verify with `XVIGIL_UITEST`.
 
 ## Repo hygiene
 

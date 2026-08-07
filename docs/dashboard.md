@@ -35,8 +35,9 @@ schedule) and loads as you scroll.
     locations (Downloads, Desktop, Documents, Applications, Messages and
     Mail attachment folders). If a location can't be read, the pane says so
     and explains that Full Disk Access would fix it — an incomplete search
-    is never passed off as "not found." Searches are bounded (~10s worst
-    case) and searched most-likely-location-first.
+    is never passed off as "not found." The most likely location is searched
+    first, and the whole lookup is hard-bounded at 15 seconds, so the pane
+    always resolves rather than spinning.
   - **Gatekeeper today** — a live `spctl` assessment of the found file and
     its full code-signature chain via `codesign`.
   - **Log context** — XProtect/Gatekeeper unified-log entries from ±60
