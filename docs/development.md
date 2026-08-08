@@ -2,14 +2,14 @@
 
 ## Layout
 
-- `Sources/xVigilCore/` — pure-read data layer: quarantine DB, XProtect log
-  parsing, system status, watchlist models/store/checker/fetcher
-- `Sources/xVigilScan/` — on-demand scanning (`ScanEngine` protocol, ClamAV
+- `Sources/xVigilCore/`: pure-read data layer (quarantine DB, XProtect log
+  parsing, system status, watchlist models/store/checker/fetcher)
+- `Sources/xVigilScan/`: on-demand scanning (`ScanEngine` protocol, ClamAV
   backend)
-- `Sources/xVigil/` — menu bar app + dashboard (SwiftUI)
-- `Sources/xvigil-cli/` — CLI harness for the data layer
-- `Tests/` — unit tests against fixture data
-- `scripts/make-app.sh <version>` — builds, signs (ad-hoc), and zips
+- `Sources/xVigil/`: menu bar app + dashboard (SwiftUI)
+- `Sources/xvigil-cli/`: CLI harness for the data layer
+- `Tests/`: unit tests against fixture data
+- `scripts/make-app.sh <version>`: builds, signs (ad-hoc), and zips
   `dist/xVigil.app`
 
 ## CLI harness
@@ -30,9 +30,9 @@ swift run xvigil-cli scan ~/Downloads   # on-demand scan (report-only)
 
 Two debug-only harnesses run inside the real GUI process:
 
-- `XVIGIL_SMOKE=1 .build/debug/xVigil` — headless self-check of the
+- `XVIGIL_SMOKE=1 .build/debug/xVigil`: headless self-check of the
   dashboard's data paths (one event, every pane).
-- `XVIGIL_UITEST=1 .build/debug/xVigil` — opens the dashboard and selects a
+- `XVIGIL_UITEST=1 .build/debug/xVigil`: opens the dashboard and selects a
   spread of real events in turn, logging how long each takes to resolve.
   Use this for anything the user sees: model-level checks pass happily while
   the view is broken (see the `.task(id:)` note below).
@@ -42,14 +42,14 @@ Two debug-only harnesses run inside the real GUI process:
 - `LSQuarantineTimeStamp` is seconds since the Core Data reference date
   (2001-01-01); `Date(timeIntervalSinceReferenceDate:)` decodes it directly.
 - On recent macOS versions the quarantine DB's URL and sender columns are
-  usually NULL — agent name, timestamp, and type are the reliable fields.
-- Apple records type numbers beyond the documented 0–5 (GarageBand content
+  usually NULL. Agent name, timestamp, and type are the reliable fields.
+- Apple records type numbers beyond the documented 0-5 (GarageBand content
   downloads are type 7), so type filters must be data-driven.
 - The quarantine DB stores no file path. The linkage goes the other way:
   quarantined files carry a `com.apple.quarantine` xattr
   (`flags;hex-timestamp;agent;event-UUID`) whose UUID keys into the DB.
 - macOS prunes DB rows on its own schedule while files keep their xattrs, so
-  DB→file correlation can fail in both directions — "file not found" is a
+  DB→file correlation can fail in both directions. "File not found" is a
   normal outcome, not an error.
 - Most quarantine events on a real Mac are Messages attachments living in
   TCC-protected `~/Library/Messages/Attachments`; file search needs Full
@@ -59,13 +59,13 @@ Two debug-only harnesses run inside the real GUI process:
 - One logical XProtect scan run interleaves several processes, so activity
   clustering splits on time gaps only, never on process changes.
 - Blocking work (subprocesses, filesystem walks, hashing) runs on GCD, never
-  on Swift Concurrency's fixed-width cooperative pool — blocking it starves
+  on Swift Concurrency's fixed-width cooperative pool. Blocking it starves
   every task in the app.
 - SwiftUI: a bare `.task {}` placed *after* `.id(x)` sits outside the
   identity `.id` establishes, so it runs once and never re-runs when `x`
   changes. The quarantine detail pane needs `.task(id: event.id)`; without
   it, selecting a second event never starts its lookups and the pane spins
-  forever. No model-level test catches this — verify with `XVIGIL_UITEST`.
+  forever. No model-level test catches this, so verify with `XVIGIL_UITEST`.
 
 ## Repo hygiene
 
