@@ -1,6 +1,7 @@
 # The xVigil Dashboard
 
-Open it from the menu bar shield → **Dashboard…**, or by clicking any banner.
+Open it from the menu bar shield → **Dashboard…**, or by clicking the red
+detections banner.
 While the dashboard is open, xVigil shows a Dock icon; close it and the app
 returns to the menu bar. Six sections in the sidebar:
 
@@ -38,8 +39,10 @@ schedule) and loads as you scroll.
     is never passed off as "not found." The most likely location is searched
     first, and the whole lookup is hard-bounded at 15 seconds, so the pane
     always resolves rather than spinning.
-  - **Gatekeeper today**: a live `spctl` assessment of the found file and
-    its full code-signature chain via `codesign`.
+  - **Gatekeeper today**: for apps, installer packages, and disk images, a
+    live `spctl` assessment of the found file. Every found file also gets
+    its full code-signature chain via `codesign` (documents and archives
+    are simply reported as unsigned).
   - **Log context**: XProtect/Gatekeeper unified-log entries from ±60
     seconds around the event.
 
@@ -49,8 +52,8 @@ What Apple's own malware scanner has been doing, read from the unified log
 and clustered by time gap into logical runs. A scheduled scan that emits
 hundreds of log lines across several helper processes collapses into one
 row. Rows are badged by significance (possible detection / Gatekeeper
-assessment / scan activity / service chatter); select one to read the raw
-entries.
+assessment / scan activity / service activity); select one to read the raw
+entries. Choose a window of the last 1 hour, 6 hours, 24 hours, or 3 days.
 
 ## On-Demand Scan
 
@@ -64,6 +67,18 @@ Pick folders, scan on demand, or enable the daily/weekly schedule. Findings
 stream in live, feed the Detections pane and red shield, and are
 **report-only**: xVigil tells you what it found and where; it never
 quarantines or deletes anything.
+
+**Keeping ClamAV current.** When Homebrew and ClamAV are both installed, an
+**Update ClamAV & signatures** button appears next to Re-check. It runs
+`brew update`, `brew upgrade clamav`, then `freshclam`, in that order,
+stopping at the first failure, with a checklist and live output. Only ClamAV
+is upgraded; your other Homebrew packages are left alone. Scans, including
+scheduled ones, are held while an update runs. It needs a network connection
+and only ever runs when you click it.
+
+If Homebrew or ClamAV is missing, the pane says so and suggests installing
+it. xVigil never installs software itself. If Homebrew's `freshclam` has no
+configuration yet, the pane explains how to create it.
 
 ## File Monitor
 

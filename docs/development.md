@@ -2,10 +2,11 @@
 
 ## Layout
 
-- `Sources/xVigilCore/`: pure-read data layer (quarantine DB, XProtect log
-  parsing, system status, watchlist models/store/checker/fetcher)
+- `Sources/xVigilCore/`: data layer that never modifies the security state
+  it observes (quarantine DB, XProtect log parsing, system status, watchlist
+  models/store/checker/fetcher; the store writes only xVigil's own config)
 - `Sources/xVigilScan/`: on-demand scanning (`ScanEngine` protocol, ClamAV
-  backend)
+  backend) and the ClamAV update flow (`ClamAVMaintenance`)
 - `Sources/xVigil/`: menu bar app + dashboard (SwiftUI)
 - `Sources/xvigil-cli/`: CLI harness for the data layer
 - `Tests/`: unit tests against fixture data
@@ -28,7 +29,7 @@ swift run xvigil-cli engine         # ClamAV availability + signature age
 swift run xvigil-cli scan ~/Downloads   # on-demand scan (report-only)
 ```
 
-Two debug-only harnesses run inside the real GUI process:
+Debug-only harnesses run inside the real GUI process:
 
 - `XVIGIL_SMOKE=1 .build/debug/xVigil`: headless self-check of the
   dashboard's data paths (one event, every pane).
@@ -36,6 +37,11 @@ Two debug-only harnesses run inside the real GUI process:
   spread of real events in turn, logging how long each takes to resolve.
   Use this for anything the user sees: model-level checks pass happily while
   the view is broken (see the `.task(id:)` note below).
+- `XVIGIL_UITEST=1 XVIGIL_UITEST_UPDATE=1 XVIGIL_FAKE_PREFIX=<dir>
+  .build/debug/xVigil`: opens the Scan pane and runs the ClamAV update
+  against a scripted fake Homebrew prefix (`<dir>/bin/brew`,
+  `<dir>/bin/freshclam`, `<dir>/etc/clamav/freshclam.conf`), so the flow can
+  be exercised and screenshotted without touching the real install.
 
 ## Implementation notes
 
@@ -51,16 +57,27 @@ Two debug-only harnesses run inside the real GUI process:
 - macOS prunes DB rows on its own schedule while files keep their xattrs, so
   DB→file correlation can fail in both directions. "File not found" is a
   normal outcome, not an error.
-- Most quarantine events on a real Mac are Messages attachments living in
-  TCC-protected `~/Library/Messages/Attachments`; file search needs Full
-  Disk Access to reach them, and reports honestly when it can't.
+- Messages attachments can dominate the quarantine database (over 80% of
+  one real Mac's events). They live in TCC-protected
+  `~/Library/Messages/Attachments`; file search needs Full Disk Access to
+  reach them, and reports honestly when it can't.
 - Always invoke `/usr/bin/log` by full path: zsh has a `log` builtin that
   silently shadows it.
+- GUI apps inherit launchd's minimal PATH, so the ClamAV update calls brew
+  and freshclam by absolute path and sets `PATH` and the non-interactive
+  Homebrew variables explicitly.
+- Homebrew ships only `freshclam.conf.sample`; `freshclam` will not run until
+  it is copied to `freshclam.conf`. An outdated ClamAV also cannot verify a
+  current signature database (it fails with "Incorrect digital signature"),
+  which is why the update flow upgrades ClamAV before running `freshclam`.
+- `brew upgrade <formula>` exits 0 when the formula is already current, so a
+  no-op upgrade is not treated as a failure.
 - One logical XProtect scan run interleaves several processes, so activity
   clustering splits on time gaps only, never on process changes.
-- Blocking work (subprocesses, filesystem walks, hashing) runs on GCD, never
-  on Swift Concurrency's fixed-width cooperative pool. Blocking it starves
-  every task in the app.
+- Nothing blocks Swift Concurrency's fixed-width cooperative pool, because
+  blocking it starves every task in the app. Subprocesses use readability and
+  termination handlers (no thread is held while one runs), and filesystem
+  walks and hashing run on dedicated GCD queues.
 - SwiftUI: a bare `.task {}` placed *after* `.id(x)` sits outside the
   identity `.id` establishes, so it runs once and never re-runs when `x`
   changes. The quarantine detail pane needs `.task(id: event.id)`; without

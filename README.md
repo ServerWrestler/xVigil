@@ -18,8 +18,9 @@ machinery on screen, loudly, when something is found.
   verdict, its code-signature chain, and the log activity around the moment
   it arrived.
 - **Scans.** On-demand and scheduled ClamAV scans of the places Apple's
-  tools never proactively check. Report-only: xVigil never quarantines or
-  deletes anything.
+  tools never proactively check, with one-click ClamAV and signature updates
+  through Homebrew. Report-only: xVigil never quarantines or deletes
+  anything.
 - **Monitors.** A file watchlist for IOC hunting, integrity tracking, and
   content inspection, fed locally or from a remote HTTPS feed.
 
