@@ -49,6 +49,9 @@ final class ScanController {
         didSet { defaults.set(lastScheduledRun, forKey: Keys.lastRun) }
     }
 
+    /// The one-click `brew update` / `brew upgrade clamav` / `freshclam` flow.
+    let updater = ClamAVUpdateController()
+
     private let engine = ClamAVEngine()
     private let monitor: DetectionMonitor
     private let defaults = UserDefaults.standard
@@ -93,7 +96,8 @@ final class ScanController {
     }
 
     private func tick() {
-        guard scheduleEnabled, !isScanning, !paths.isEmpty else { return }
+        // Never scan while the scanner itself is being upgraded.
+        guard scheduleEnabled, !isScanning, !updater.isRunning, !paths.isEmpty else { return }
         let due = lastScheduledRun.map {
             Date().timeIntervalSince($0) >= frequency.seconds
         } ?? true
@@ -105,11 +109,19 @@ final class ScanController {
 
     func checkEngine() {
         let engine = self.engine
+        updater.refreshReadiness()
         Task { self.engineAvailability = await engine.availability() }
     }
 
-    func startManualScan() {
+    /// Updates Homebrew, upgrades ClamAV, and refreshes signatures, then
+    /// re-checks the engine so the pane reflects the new versions and age.
+    func updateEngine() {
         guard !isScanning else { return }
+        updater.start { [weak self] in self?.checkEngine() }
+    }
+
+    func startManualScan() {
+        guard !isScanning, !updater.isRunning else { return }
         lastRunWasScheduled = false
         scanTask = Task { await runScan() }
     }
@@ -127,7 +139,7 @@ final class ScanController {
     }
 
     private func runScan() async {
-        guard !isScanning, !paths.isEmpty else { return }
+        guard !isScanning, !updater.isRunning, !paths.isEmpty else { return }
         isScanning = true
         threats = []
         summary = nil

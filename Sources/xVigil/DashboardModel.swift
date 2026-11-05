@@ -256,6 +256,35 @@ final class DashboardModel {
         FileHandle.standardError.write(Data("[trace] \(message)\n".utf8))
     }
 
+    /// Drives the Scan pane's update flow and logs every state change, so a
+    /// screenshot taken mid-run and after can be compared with the model.
+    private func runUpdateUITest(stamp: (String) -> Void) async {
+        try? await Task.sleep(for: .seconds(2))
+        section = .scan
+        scanner.checkEngine()
+        try? await Task.sleep(for: .seconds(2))
+        stamp("pane open; readiness=\(scanner.updater.readiness)")
+        // Safety: only ever press the button against a scripted fake prefix.
+        // Against the real Homebrew this would run a real brew update and
+        // upgrade, so the scenario just displays the pane instead.
+        if ProcessInfo.processInfo.environment["XVIGIL_FAKE_PREFIX"] == nil {
+            stamp("no XVIGIL_FAKE_PREFIX: showing the pane only, not pressing Update")
+        } else if scanner.updater.readiness == .ready {
+            stamp("pressing Update ClamAV & signatures")
+            scanner.updateEngine()
+        }
+        var last = ""
+        for _ in 0..<60 {
+            try? await Task.sleep(for: .milliseconds(500))
+            NSApplication.shared.activate(ignoringOtherApps: true)
+            let u = scanner.updater
+            let state = "running=\(u.isRunning) steps=\(u.steps.map { "\($0.title):\($0.status)" }) "
+                + "log=\(u.logLines.count) result=\(u.result.map { "\($0.succeeded):\($0.message)" } ?? "nil")"
+            if state != last { stamp(state); last = state }
+        }
+        stamp("window stays open for inspection")
+    }
+
     /// Selects a real event so the REAL SwiftUI detail pane renders and fires
     /// its own `.task` (no model calls faked here), then logs model state
     /// every second. Pair with a screenshot: if the model reports `.loaded`
@@ -265,6 +294,12 @@ final class DashboardModel {
         let started = Date()
         func stamp(_ message: String) {
             Self.trace(String(format: "[ui %5.1fs] %@", Date().timeIntervalSince(started), message))
+        }
+        // XVIGIL_UITEST_UPDATE: open the Scan pane and run the engine update
+        // (pair with XVIGIL_FAKE_PREFIX so no real brew is touched).
+        if ProcessInfo.processInfo.environment["XVIGIL_UITEST_UPDATE"] != nil {
+            await runUpdateUITest(stamp: stamp)
+            return
         }
         // Click through a spread of real events — including older ones whose
         // files are long gone, which is the user's reported failure case.

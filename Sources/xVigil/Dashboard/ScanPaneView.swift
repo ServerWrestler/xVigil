@@ -6,6 +6,7 @@ import xVigilScan
 struct ScanPaneView: View {
     let model: DashboardModel
     @State private var showingPathPicker = false
+    @State private var confirmingStop = false
 
     var body: some View {
         @Bindable var scanner = model.scanner
@@ -16,6 +17,14 @@ struct ScanPaneView: View {
             resultsSection
         }
         .formStyle(.grouped)
+        .confirmationDialog(
+            "Stop the update?", isPresented: $confirmingStop, titleVisibility: .visible
+        ) {
+            Button("Stop update", role: .destructive) { updater.stop() }
+            Button("Keep running", role: .cancel) {}
+        } message: {
+            Text("Stopping Homebrew partway through an upgrade can leave ClamAV half-installed. If that happens, run `brew reinstall clamav`.")
+        }
         .onAppear {
             if model.scanner.engineAvailability == nil { model.scanner.checkEngine() }
         }
@@ -48,7 +57,7 @@ struct ScanPaneView: View {
                     signatureAgeRow(availability)
                 } else {
                     Label {
-                        Text("ClamAV is not installed. Install with `brew install clamav`, then run `freshclam` to download signatures.")
+                        Text("ClamAV is not installed.")
                     } icon: {
                         Image(systemName: "xmark.circle.fill").foregroundStyle(.red)
                     }
@@ -56,13 +65,115 @@ struct ScanPaneView: View {
                 Text(availability.detail)
                     .font(.caption.monospaced())
                     .foregroundStyle(.secondary)
-                Button("Re-check") { scanner.checkEngine() }
+                maintenanceControls
             } else {
                 HStack(spacing: 8) {
                     ProgressView().controlSize(.small)
                     Text("Checking for ClamAV…").foregroundStyle(.secondary)
                 }
             }
+        }
+    }
+
+    // MARK: Engine maintenance
+
+    private var updater: ClamAVUpdateController { scanner.updater }
+
+    /// Re-check always; the update button only when Homebrew and ClamAV are
+    /// both installed. Otherwise a plain text suggestion: xVigil never
+    /// installs software itself.
+    @ViewBuilder
+    private var maintenanceControls: some View {
+        HStack {
+            Button("Re-check") { scanner.checkEngine() }
+                .disabled(updater.isRunning)
+            if updater.readiness == .ready {
+                Button("Update ClamAV & signatures") { scanner.updateEngine() }
+                    .disabled(updater.isRunning || scanner.isScanning)
+                    .help("Runs brew update, brew upgrade clamav, then freshclam")
+            }
+            Spacer()
+        }
+        readinessMessage
+        updateProgress
+    }
+
+    @ViewBuilder
+    private var readinessMessage: some View {
+        switch updater.readiness {
+        case .ready:
+            Text("Runs `brew update`, `brew upgrade clamav`, then `freshclam`. Only ClamAV is upgraded; other Homebrew packages are left alone. Needs a network connection.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        case .missing(let homebrewMissing, let clamavMissing):
+            Text(missingMessage(homebrewMissing: homebrewMissing, clamavMissing: clamavMissing))
+                .font(.caption)
+                .foregroundStyle(.orange)
+        case .needsConfig(let path):
+            Text("freshclam has no configuration yet. Copy `freshclam.conf.sample` to `\(path)` and remove its `Example` line (`brew info clamav` shows how), then click Re-check.")
+                .font(.caption)
+                .foregroundStyle(.orange)
+        }
+    }
+
+    private func missingMessage(homebrewMissing: Bool, clamavMissing: Bool) -> LocalizedStringKey {
+        switch (homebrewMissing, clamavMissing) {
+        case (true, true):
+            "Homebrew and ClamAV are not installed. Install [Homebrew](https://brew.sh), then run `brew install clamav` in Terminal. xVigil can then keep ClamAV up to date for you."
+        case (true, false):
+            "ClamAV is installed, but Homebrew isn't, so xVigil can't update it automatically. Install [Homebrew](https://brew.sh) to enable one-click updates."
+        default:
+            "ClamAV is not installed. Run `brew install clamav` in Terminal, then click Re-check."
+        }
+    }
+
+    /// Step checklist, live log, and outcome of an update run.
+    @ViewBuilder
+    private var updateProgress: some View {
+        if !updater.steps.isEmpty {
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(updater.steps) { step in
+                    Label {
+                        Text(step.title).font(.callout.monospaced())
+                    } icon: {
+                        stepIcon(step.status)
+                    }
+                }
+            }
+            if updater.isRunning {
+                HStack(spacing: 8) {
+                    ProgressView().controlSize(.small)
+                    Button("Stop", role: .cancel) { confirmingStop = true }
+                        .controlSize(.small)
+                }
+            }
+            if !updater.logLines.isEmpty {
+                DisclosureGroup("Output") {
+                    ScrollView {
+                        Text(updater.logLines.joined(separator: "\n"))
+                            .font(.caption.monospaced())
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .frame(maxHeight: 180)
+                }
+            }
+            if let result = updater.result {
+                Label(result.message, systemImage: result.succeeded
+                    ? "checkmark.circle.fill" : "xmark.octagon.fill")
+                    .foregroundStyle(result.succeeded ? .green : .red)
+                    .font(.callout)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func stepIcon(_ status: ClamAVUpdateController.StepState.Status) -> some View {
+        switch status {
+        case .pending: Image(systemName: "circle").foregroundStyle(.secondary)
+        case .running: ProgressView().controlSize(.mini)
+        case .succeeded: Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+        case .failed: Image(systemName: "xmark.circle.fill").foregroundStyle(.red)
         }
     }
 
@@ -82,7 +193,9 @@ struct ScanPaneView: View {
             }
         }
         if availability.signaturesStale {
-            Text("Stale signatures give false confidence — run `freshclam` (or start the freshclam service) to update.")
+            Text(updater.readiness == .ready
+                ? "Stale signatures give false confidence. Click Update ClamAV & signatures above."
+                : "Stale signatures give false confidence. Run `freshclam` to update.")
                 .font(.caption)
                 .foregroundStyle(.orange)
         }

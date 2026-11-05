@@ -176,13 +176,22 @@ public enum Subprocess {
     /// for long-running work (scans) that should render results live rather
     /// than after completion. The stream ends with `.exited(status:)`.
     /// Cancelling the consuming task terminates the process.
+    ///
+    /// `environment` entries are layered over the app's own environment. A
+    /// GUI app inherits launchd's minimal PATH, which is not enough for tools
+    /// like Homebrew that shell out to git and curl.
     public static func streamLines(
         _ executablePath: String,
-        arguments: [String]
+        arguments: [String],
+        environment: [String: String] = [:]
     ) throws -> AsyncStream<SubprocessStreamEvent> {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: executablePath)
         process.arguments = arguments
+        if !environment.isEmpty {
+            process.environment = ProcessInfo.processInfo.environment
+                .merging(environment) { _, override in override }
+        }
 
         // One pipe for both: scan tools interleave findings and warnings,
         // and per-line ordering is all the consumer needs.
