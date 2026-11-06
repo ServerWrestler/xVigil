@@ -118,8 +118,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 /// menu-bar-native the rest of the time.
 @MainActor
 enum DockPresence {
+    /// Drawn once; re-applied on every open.
+    private static let icon = AppIcon.image(size: 512)
+
     static func dashboardOpened() {
         NSApp.setActivationPolicy(.regular)
+        // Assigned AFTER the policy switch on purpose. An icon set while the
+        // app was still .accessory is dropped when it becomes a regular app,
+        // leaving the generic "exec" icon for unbundled `swift run` builds.
+        // (Bundled apps also get theirs from the .icns.)
+        NSApp.applicationIconImage = icon
         NSApp.activate()
     }
 

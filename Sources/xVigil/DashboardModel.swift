@@ -260,6 +260,13 @@ final class DashboardModel {
     /// screenshot taken mid-run and after can be compared with the model.
     private func runUpdateUITest(stamp: (String) -> Void) async {
         try? await Task.sleep(for: .seconds(2))
+        // In real use the app launches menu-bar-only and the dashboard opens
+        // later. This harness opens it at launch (before the launch code
+        // sets .accessory), so replay the later open to exercise the same
+        // accessory -> regular switch a user triggers.
+        DockPresence.dashboardClosed()
+        try? await Task.sleep(for: .milliseconds(500))
+        DockPresence.dashboardOpened()
         section = .scan
         scanner.checkEngine()
         try? await Task.sleep(for: .seconds(2))
