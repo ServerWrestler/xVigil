@@ -68,7 +68,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>CFBundleVersion</key>                <string>$BUILD_NUMBER</string>
     <key>LSMinimumSystemVersion</key>         <string>15.0</string>
     <key>LSUIElement</key>                    <true/>
-    <key>NSHumanReadableCopyright</key>       <string>MIT License</string>
+    <key>NSHumanReadableCopyright</key>       <string>Copyright © 2026 Eric Chadbourne. GNU GPL v3 or later.</string>
 </dict>
 </plist>
 PLIST

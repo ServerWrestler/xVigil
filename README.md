@@ -52,6 +52,13 @@ for scanning. Grant xVigil Full Disk Access for complete file search.
 - [Development notes](docs/development.md): layout, CLI harness, macOS
   gotchas, repo hygiene
 
+## License
+
+Copyright (C) 2026 Eric Chadbourne. xVigil is free software, released under
+the [GNU General Public License, version 3 or later](LICENSE). XProtect and
+Gatekeeper are Apple technologies and ClamAV is a Cisco project; xVigil is
+independent and not endorsed by either.
+
 ## Next ideas
 
 - `log stream` for live tailing instead of polled `log show`

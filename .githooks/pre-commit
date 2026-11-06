@@ -48,10 +48,12 @@ emails=$(printf '%s\n' "$staged" \
     | grep -vE '@[0-9]+x\.' || true)
 [ -n "$emails" ] && report "email address" "$emails"
 
-# Local-only personal patterns (never committed).
+# Local-only personal patterns (never committed). A line containing
+# "Copyright" is exempt: a copyright notice is supposed to name its holder.
 personal=".git/info/personal-patterns"
 if [ -f "$personal" ]; then
-    matches=$(printf '%s\n' "$staged" | grep -inE -f "$personal" 2>/dev/null || true)
+    matches=$(printf '%s\n' "$staged" | grep -inE -f "$personal" 2>/dev/null \
+        | grep -viE 'copyright' || true)
     [ -n "$matches" ] && report "personal data (see $personal)" "$matches"
 fi
 
