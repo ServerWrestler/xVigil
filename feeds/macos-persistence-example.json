@@ -1,0 +1,573 @@
+{
+  "entries": [
+    {
+      "alertConditions": [
+        "onMatch"
+      ],
+      "contentPatterns": [
+        "<key>Program(Arguments)?</key>\\s*(<array>\\s*)?<string>\\s*((/private)?(/var)?/tmp/|/var/folders/|/Users/Shared/)",
+        "<key>Program(Arguments)?</key>\\s*(<array>\\s*)?<string>\\s*/[^<]*/\\.[A-Za-z0-9_][^/<]*</string>",
+        "<key>ProgramArguments</key>\\s*<array>\\s*<string>[^<]*/((ba|z|da)?sh|python3?|perl|ruby|osascript|node)</string>\\s*(<string>-[A-Za-z]+</string>\\s*)*<string>[^<]*((/private)?(/var)?/tmp/|/var/folders/|/Users/Shared/)"
+      ],
+      "id": "fc9f37ff-d189-5ebb-888f-588de35db4a4",
+      "label": "Persistence: user LaunchAgents - runs from temp/shared/hidden path",
+      "notes": "Medium. MITRE T1543.001. Flags plists whose launched executable lives in /tmp, /var/folders or the shared users folder, has a hidden basename, or is a shell/interpreter whose script or command references those temp paths. Log paths (StandardOutPath etc.) are deliberately not matched. XML plists only: binary plists are skipped by the content scanner.",
+      "recursive": false,
+      "target": "~/Library/LaunchAgents/*.plist",
+      "trackIntegrity": false
+    },
+    {
+      "alertConditions": [
+        "onMatch"
+      ],
+      "contentPatterns": [
+        "<key>(DYLD_[A-Z_]+|LD_PRELOAD)</key>",
+        "(?s)<string>-c</string>\\s*<string>[^<]*\\b(curl|wget|nc|ncat|openssl|python3?|perl|ruby|php|base64|osascript)\\b[^<]*</string>",
+        "<string>[^<]*\\b(curl|wget)\\b[^<]*\\|\\s*(ba|z)?sh\\b",
+        "/dev/tcp/",
+        "base64\\s+(-d|-D|--decode)",
+        "<string>\\s*/usr/bin/osascript</string>"
+      ],
+      "id": "b259fe66-274d-5ca5-94b5-052a06e677b7",
+      "label": "Persistence: user LaunchAgents - shell/interpreter one-liner or dylib injection",
+      "notes": "High. MITRE T1543.001, T1574.006. DYLD_*/LD_PRELOAD environment keys, sh -c wrappers around curl/nc/python/osascript, curl|sh, /dev/tcp, base64 -d, or osascript as the launched program. XML plists only.",
+      "recursive": false,
+      "target": "~/Library/LaunchAgents/*.plist",
+      "trackIntegrity": false
+    },
+    {
+      "alertConditions": [
+        "onMatch"
+      ],
+      "contentPatterns": [
+        "<key>Program(Arguments)?</key>\\s*(<array>\\s*)?<string>\\s*((/private)?(/var)?/tmp/|/var/folders/|/Users/Shared/)",
+        "<key>Program(Arguments)?</key>\\s*(<array>\\s*)?<string>\\s*/[^<]*/\\.[A-Za-z0-9_][^/<]*</string>",
+        "<key>ProgramArguments</key>\\s*<array>\\s*<string>[^<]*/((ba|z|da)?sh|python3?|perl|ruby|osascript|node)</string>\\s*(<string>-[A-Za-z]+</string>\\s*)*<string>[^<]*((/private)?(/var)?/tmp/|/var/folders/|/Users/Shared/)"
+      ],
+      "id": "e49df3b6-4dfe-51b1-b628-df09e871cb81",
+      "label": "Persistence: system LaunchAgents - runs from temp/shared/hidden path",
+      "notes": "Medium. MITRE T1543.001. Flags plists whose launched executable lives in /tmp, /var/folders or the shared users folder, has a hidden basename, or is a shell/interpreter whose script or command references those temp paths. Log paths (StandardOutPath etc.) are deliberately not matched. XML plists only: binary plists are skipped by the content scanner.",
+      "recursive": false,
+      "target": "/Library/LaunchAgents/*.plist",
+      "trackIntegrity": false
+    },
+    {
+      "alertConditions": [
+        "onMatch"
+      ],
+      "contentPatterns": [
+        "<key>(DYLD_[A-Z_]+|LD_PRELOAD)</key>",
+        "(?s)<string>-c</string>\\s*<string>[^<]*\\b(curl|wget|nc|ncat|openssl|python3?|perl|ruby|php|base64|osascript)\\b[^<]*</string>",
+        "<string>[^<]*\\b(curl|wget)\\b[^<]*\\|\\s*(ba|z)?sh\\b",
+        "/dev/tcp/",
+        "base64\\s+(-d|-D|--decode)",
+        "<string>\\s*/usr/bin/osascript</string>"
+      ],
+      "id": "0331b32e-0bfb-5178-9c35-aeab5794266c",
+      "label": "Persistence: system LaunchAgents - shell/interpreter one-liner or dylib injection",
+      "notes": "High. MITRE T1543.001, T1574.006. DYLD_*/LD_PRELOAD environment keys, sh -c wrappers around curl/nc/python/osascript, curl|sh, /dev/tcp, base64 -d, or osascript as the launched program. XML plists only.",
+      "recursive": false,
+      "target": "/Library/LaunchAgents/*.plist",
+      "trackIntegrity": false
+    },
+    {
+      "alertConditions": [
+        "onMatch"
+      ],
+      "contentPatterns": [
+        "<key>Program(Arguments)?</key>\\s*(<array>\\s*)?<string>\\s*((/private)?(/var)?/tmp/|/var/folders/|/Users/Shared/)",
+        "<key>Program(Arguments)?</key>\\s*(<array>\\s*)?<string>\\s*/[^<]*/\\.[A-Za-z0-9_][^/<]*</string>",
+        "<key>ProgramArguments</key>\\s*<array>\\s*<string>[^<]*/((ba|z|da)?sh|python3?|perl|ruby|osascript|node)</string>\\s*(<string>-[A-Za-z]+</string>\\s*)*<string>[^<]*((/private)?(/var)?/tmp/|/var/folders/|/Users/Shared/)"
+      ],
+      "id": "90ca5406-369d-5b98-b3ad-aabd5e80e99e",
+      "label": "Persistence: LaunchDaemons - runs from temp/shared/hidden path",
+      "notes": "Medium. MITRE T1543.004. Flags plists whose launched executable lives in /tmp, /var/folders or the shared users folder, has a hidden basename, or is a shell/interpreter whose script or command references those temp paths. Log paths (StandardOutPath etc.) are deliberately not matched. XML plists only: binary plists are skipped by the content scanner.",
+      "recursive": false,
+      "target": "/Library/LaunchDaemons/*.plist",
+      "trackIntegrity": false
+    },
+    {
+      "alertConditions": [
+        "onMatch"
+      ],
+      "contentPatterns": [
+        "<key>(DYLD_[A-Z_]+|LD_PRELOAD)</key>",
+        "(?s)<string>-c</string>\\s*<string>[^<]*\\b(curl|wget|nc|ncat|openssl|python3?|perl|ruby|php|base64|osascript)\\b[^<]*</string>",
+        "<string>[^<]*\\b(curl|wget)\\b[^<]*\\|\\s*(ba|z)?sh\\b",
+        "/dev/tcp/",
+        "base64\\s+(-d|-D|--decode)",
+        "<string>\\s*/usr/bin/osascript</string>"
+      ],
+      "id": "ad32d7c2-eea5-56dc-9de2-bb2a43374406",
+      "label": "Persistence: LaunchDaemons - shell/interpreter one-liner or dylib injection",
+      "notes": "High. MITRE T1543.004, T1574.006. DYLD_*/LD_PRELOAD environment keys, sh -c wrappers around curl/nc/python/osascript, curl|sh, /dev/tcp, base64 -d, or osascript as the launched program. XML plists only.",
+      "recursive": false,
+      "target": "/Library/LaunchDaemons/*.plist",
+      "trackIntegrity": false
+    },
+    {
+      "alertConditions": [
+        "onPresence"
+      ],
+      "contentPatterns": [],
+      "id": "93de8fac-110c-554c-b33c-c61e5e82a5f0",
+      "label": "Persistence: user LaunchAgent masquerading as Apple",
+      "notes": "Medium. MITRE T1036.005 / T1543.001. Apple's own launch items live on the sealed system volume, not in the user's LaunchAgents folder. Alerts on any file there with a com.apple. prefix. Known benign leftover: com.apple.CSConfigDotMacCert-*.plist from the MobileMe era. Review the program path.",
+      "recursive": false,
+      "target": "~/Library/LaunchAgents/com.apple.*.plist",
+      "trackIntegrity": false
+    },
+    {
+      "alertConditions": [
+        "onMatch"
+      ],
+      "contentPatterns": [
+        "\\b(curl|wget)\\b[^\\n]*\\|\\s*(sudo\\s+)?(ba|z)?sh\\b",
+        "\\beval\\s+[\\\"']?\\$\\(\\s*(curl|wget)\\b",
+        "base64\\s+(-d|-D|--decode)",
+        "/dev/tcp/",
+        "(?m)^\\s*(export\\s+)?DYLD_(INSERT_LIBRARIES|FRAMEWORK_PATH|LIBRARY_PATH)=",
+        "\\b(nohup|exec|source)\\s+(/private)?(/var)?/tmp/",
+        "(?m)^\\s*(alias\\s+(sudo|su)=|(function\\s+)?(sudo|su)\\s*\\(\\s*\\)\\s*\\{)"
+      ],
+      "id": "433fcb48-707e-52ef-a8c3-2461a3d4f28d",
+      "label": "Persistence: ~/.zshrc and ~/.zshenv (and backups) - malicious idioms",
+      "notes": "Medium. MITRE T1546.004. Content match for download-and-execute, reverse-shell, dylib-injection and sudo/su shadowing idioms. The alias/function check can fire on legitimate `alias sudo='sudo '`. Globs deliberately exclude *_history and *_sessions.",
+      "recursive": false,
+      "target": "~/.zsh[er]*",
+      "trackIntegrity": false
+    },
+    {
+      "alertConditions": [
+        "onMatch"
+      ],
+      "contentPatterns": [
+        "\\b(curl|wget)\\b[^\\n]*\\|\\s*(sudo\\s+)?(ba|z)?sh\\b",
+        "\\beval\\s+[\\\"']?\\$\\(\\s*(curl|wget)\\b",
+        "base64\\s+(-d|-D|--decode)",
+        "/dev/tcp/",
+        "(?m)^\\s*(export\\s+)?DYLD_(INSERT_LIBRARIES|FRAMEWORK_PATH|LIBRARY_PATH)=",
+        "\\b(nohup|exec|source)\\s+(/private)?(/var)?/tmp/",
+        "(?m)^\\s*(alias\\s+(sudo|su)=|(function\\s+)?(sudo|su)\\s*\\(\\s*\\)\\s*\\{)"
+      ],
+      "id": "59713ddb-849a-5107-b256-b5b7f0ce1f95",
+      "label": "Persistence: ~/.zprofile, ~/.zlogin, ~/.zlogout - malicious idioms",
+      "notes": "Medium. MITRE T1546.004. Content match for download-and-execute, reverse-shell, dylib-injection and sudo/su shadowing idioms. The alias/function check can fire on legitimate `alias sudo='sudo '`. Globs deliberately exclude *_history and *_sessions.",
+      "recursive": false,
+      "target": "~/.z[pl]*",
+      "trackIntegrity": false
+    },
+    {
+      "alertConditions": [
+        "onMatch"
+      ],
+      "contentPatterns": [
+        "\\b(curl|wget)\\b[^\\n]*\\|\\s*(sudo\\s+)?(ba|z)?sh\\b",
+        "\\beval\\s+[\\\"']?\\$\\(\\s*(curl|wget)\\b",
+        "base64\\s+(-d|-D|--decode)",
+        "/dev/tcp/",
+        "(?m)^\\s*(export\\s+)?DYLD_(INSERT_LIBRARIES|FRAMEWORK_PATH|LIBRARY_PATH)=",
+        "\\b(nohup|exec|source)\\s+(/private)?(/var)?/tmp/",
+        "(?m)^\\s*(alias\\s+(sudo|su)=|(function\\s+)?(sudo|su)\\s*\\(\\s*\\)\\s*\\{)"
+      ],
+      "id": "bbcd5c4d-77c1-5a19-9770-1622a1aa15a8",
+      "label": "Persistence: ~/.bashrc, ~/.bash_profile/login/logout - malicious idioms",
+      "notes": "Medium. MITRE T1546.004. Content match for download-and-execute, reverse-shell, dylib-injection and sudo/su shadowing idioms. The alias/function check can fire on legitimate `alias sudo='sudo '`. Globs deliberately exclude *_history and *_sessions.",
+      "recursive": false,
+      "target": "~/.bash[_r][pcl]*",
+      "trackIntegrity": false
+    },
+    {
+      "alertConditions": [
+        "onMatch"
+      ],
+      "contentPatterns": [
+        "\\b(curl|wget)\\b[^\\n]*\\|\\s*(sudo\\s+)?(ba|z)?sh\\b",
+        "\\beval\\s+[\\\"']?\\$\\(\\s*(curl|wget)\\b",
+        "base64\\s+(-d|-D|--decode)",
+        "/dev/tcp/",
+        "(?m)^\\s*(export\\s+)?DYLD_(INSERT_LIBRARIES|FRAMEWORK_PATH|LIBRARY_PATH)=",
+        "\\b(nohup|exec|source)\\s+(/private)?(/var)?/tmp/",
+        "(?m)^\\s*(alias\\s+(sudo|su)=|(function\\s+)?(sudo|su)\\s*\\(\\s*\\)\\s*\\{)"
+      ],
+      "id": "4f964711-e3b2-58d9-bdc8-01958225158d",
+      "label": "Persistence: ~/.profile - malicious idioms",
+      "notes": "Medium. MITRE T1546.004. Content match for download-and-execute, reverse-shell, dylib-injection and sudo/su shadowing idioms. The alias/function check can fire on legitimate `alias sudo='sudo '`.",
+      "recursive": false,
+      "target": "~/.profile",
+      "trackIntegrity": false
+    },
+    {
+      "alertConditions": [
+        "onMatch"
+      ],
+      "contentPatterns": [
+        "\\b(curl|wget)\\b[^\\n]*\\|\\s*(sudo\\s+)?(ba|z)?sh\\b",
+        "\\beval\\s+[\\\"']?\\$\\(\\s*(curl|wget)\\b",
+        "base64\\s+(-d|-D|--decode)",
+        "/dev/tcp/",
+        "(?m)^\\s*(export\\s+)?DYLD_(INSERT_LIBRARIES|FRAMEWORK_PATH|LIBRARY_PATH)=",
+        "\\b(nohup|exec|source)\\s+(/private)?(/var)?/tmp/",
+        "(?m)^\\s*(alias\\s+(sudo|su)=|(function\\s+)?(sudo|su)\\s*\\(\\s*\\)\\s*\\{)"
+      ],
+      "id": "7a9098c2-6dce-59ba-90f8-a8df49214a2a",
+      "label": "Persistence: /etc zsh startup files - malicious idioms",
+      "notes": "High. System-wide startup file: root-owned, so any hit implies privileged tampering. MITRE T1546.004. Content match for download-and-execute, reverse-shell, dylib-injection and sudo/su shadowing idioms. The alias/function check can fire on legitimate `alias sudo='sudo '`.",
+      "recursive": false,
+      "target": "/etc/z*",
+      "trackIntegrity": false
+    },
+    {
+      "alertConditions": [
+        "onMatch"
+      ],
+      "contentPatterns": [
+        "\\b(curl|wget)\\b[^\\n]*\\|\\s*(sudo\\s+)?(ba|z)?sh\\b",
+        "\\beval\\s+[\\\"']?\\$\\(\\s*(curl|wget)\\b",
+        "base64\\s+(-d|-D|--decode)",
+        "/dev/tcp/",
+        "(?m)^\\s*(export\\s+)?DYLD_(INSERT_LIBRARIES|FRAMEWORK_PATH|LIBRARY_PATH)=",
+        "\\b(nohup|exec|source)\\s+(/private)?(/var)?/tmp/",
+        "(?m)^\\s*(alias\\s+(sudo|su)=|(function\\s+)?(sudo|su)\\s*\\(\\s*\\)\\s*\\{)"
+      ],
+      "id": "31871329-a588-5d6c-8f74-06a9fe2cfd59",
+      "label": "Persistence: /etc/profile - malicious idioms",
+      "notes": "High. System-wide startup file: root-owned, so any hit implies privileged tampering. MITRE T1546.004. Content match for download-and-execute, reverse-shell, dylib-injection and sudo/su shadowing idioms. The alias/function check can fire on legitimate `alias sudo='sudo '`.",
+      "recursive": false,
+      "target": "/etc/profile",
+      "trackIntegrity": false
+    },
+    {
+      "alertConditions": [
+        "onMatch"
+      ],
+      "contentPatterns": [
+        "\\b(curl|wget)\\b[^\\n]*\\|\\s*(sudo\\s+)?(ba|z)?sh\\b",
+        "\\beval\\s+[\\\"']?\\$\\(\\s*(curl|wget)\\b",
+        "base64\\s+(-d|-D|--decode)",
+        "/dev/tcp/",
+        "(?m)^\\s*(export\\s+)?DYLD_(INSERT_LIBRARIES|FRAMEWORK_PATH|LIBRARY_PATH)=",
+        "\\b(nohup|exec|source)\\s+(/private)?(/var)?/tmp/",
+        "(?m)^\\s*(alias\\s+(sudo|su)=|(function\\s+)?(sudo|su)\\s*\\(\\s*\\)\\s*\\{)"
+      ],
+      "id": "a6df5366-b003-57c1-9e8c-1b7d44a88652",
+      "label": "Persistence: /etc/bashrc - malicious idioms",
+      "notes": "High. System-wide startup file: root-owned, so any hit implies privileged tampering. MITRE T1546.004. Content match for download-and-execute, reverse-shell, dylib-injection and sudo/su shadowing idioms. The alias/function check can fire on legitimate `alias sudo='sudo '`.",
+      "recursive": false,
+      "target": "/etc/bashrc",
+      "trackIntegrity": false
+    },
+    {
+      "alertConditions": [
+        "onPresence"
+      ],
+      "contentPatterns": [],
+      "id": "a40df432-be81-56a7-aa5c-9c97a9580e86",
+      "label": "Persistence: /etc/zshenv exists",
+      "notes": "High. Sourced by every zsh invocation, interactive or not. Not present on a stock macOS install (verify on your OS version).",
+      "recursive": false,
+      "target": "/etc/zshenv",
+      "trackIntegrity": false
+    },
+    {
+      "alertConditions": [
+        "onPresence"
+      ],
+      "contentPatterns": [],
+      "id": "762340bd-b06c-5145-bddc-621fe8713d37",
+      "label": "Persistence: /etc/zlogin or /etc/zlogout exists",
+      "notes": "High. Not present on a stock macOS install (verify on your OS version).",
+      "recursive": false,
+      "target": "/etc/zlog*",
+      "trackIntegrity": false
+    },
+    {
+      "alertConditions": [
+        "onMatch"
+      ],
+      "contentPatterns": [
+        "\\b(curl|wget)\\b[^\\n]*\\|\\s*(sudo\\s+)?(ba|z)?sh\\b",
+        "base64\\s+(-d|-D|--decode)",
+        "/dev/tcp/",
+        "\\bosascript\\b"
+      ],
+      "id": "a17ebf3c-0dc9-5251-a883-88f3eae3711b",
+      "label": "Persistence: periodic daily scripts - malicious idioms",
+      "notes": "Medium. MITRE T1053.003-adjacent (periodic runs via launchd). Runs as root. Content match only: new, benign scripts are not flagged (the checker has no new-file condition).",
+      "recursive": false,
+      "target": "/etc/periodic/daily/*",
+      "trackIntegrity": false
+    },
+    {
+      "alertConditions": [
+        "onMatch"
+      ],
+      "contentPatterns": [
+        "\\b(curl|wget)\\b[^\\n]*\\|\\s*(sudo\\s+)?(ba|z)?sh\\b",
+        "base64\\s+(-d|-D|--decode)",
+        "/dev/tcp/",
+        "\\bosascript\\b"
+      ],
+      "id": "b46f16d7-d916-5f24-99f6-49277381ad1c",
+      "label": "Persistence: periodic weekly scripts - malicious idioms",
+      "notes": "Medium. MITRE T1053.003-adjacent (periodic runs via launchd). Runs as root. Content match only: new, benign scripts are not flagged (the checker has no new-file condition).",
+      "recursive": false,
+      "target": "/etc/periodic/weekly/*",
+      "trackIntegrity": false
+    },
+    {
+      "alertConditions": [
+        "onMatch"
+      ],
+      "contentPatterns": [
+        "\\b(curl|wget)\\b[^\\n]*\\|\\s*(sudo\\s+)?(ba|z)?sh\\b",
+        "base64\\s+(-d|-D|--decode)",
+        "/dev/tcp/",
+        "\\bosascript\\b"
+      ],
+      "id": "552d06b0-ef08-5e42-9c62-97598208e904",
+      "label": "Persistence: periodic monthly scripts - malicious idioms",
+      "notes": "Medium. MITRE T1053.003-adjacent (periodic runs via launchd). Runs as root. Content match only: new, benign scripts are not flagged (the checker has no new-file condition).",
+      "recursive": false,
+      "target": "/etc/periodic/monthly/*",
+      "trackIntegrity": false
+    },
+    {
+      "alertConditions": [
+        "onPresence"
+      ],
+      "contentPatterns": [],
+      "id": "405efc76-1678-58f9-9818-1b76eea1baf9",
+      "label": "Persistence: periodic *.local override exists",
+      "notes": "Medium. /etc/daily.local, weekly.local and monthly.local run as root from the periodic job. Not present by default.",
+      "recursive": false,
+      "target": "/etc/[dwm]*ly.local",
+      "trackIntegrity": false
+    },
+    {
+      "alertConditions": [
+        "onMatch"
+      ],
+      "contentPatterns": [
+        "<string>\\s*RunCommand\\s*</string>"
+      ],
+      "id": "5c956ebf-3725-5ba9-9a05-2476af216e56",
+      "label": "Persistence: emond rule runs a command",
+      "notes": "High. MITRE T1546.014. Event Monitor was removed in macOS Ventura. Matches RunCommand actions, the persistence mechanism; the stock SampleRules.plist that can survive upgrades does not use one.",
+      "recursive": false,
+      "target": "/etc/emond.d/rules/*.plist",
+      "trackIntegrity": false
+    },
+    {
+      "alertConditions": [
+        "onPresence"
+      ],
+      "contentPatterns": [],
+      "id": "19256c6d-4473-52fc-8afa-92f6ed73e799",
+      "label": "Persistence: user Folder Action script exists",
+      "notes": "Medium. MITRE T1546 (event-triggered execution; Folder Actions have no dedicated sub-technique). Folder Action Scripts in the user Library are not present by default.",
+      "recursive": false,
+      "target": "~/Library/Scripts/Folder Action Scripts/*",
+      "trackIntegrity": false
+    },
+    {
+      "alertConditions": [
+        "onPresence"
+      ],
+      "contentPatterns": [],
+      "id": "963f0822-32b5-51ca-b8e1-2e46273edc43",
+      "label": "Access: SSH authorized_keys exists",
+      "notes": "Medium. MITRE T1098.004. Alerts when any authorized_keys file exists. Expected to fire on Macs that legitimately accept SSH logins; drop this entry for those hosts.",
+      "recursive": false,
+      "target": "~/.ssh/authorized_keys*",
+      "trackIntegrity": false
+    },
+    {
+      "alertConditions": [
+        "onPresence"
+      ],
+      "contentPatterns": [],
+      "id": "092b8be4-40e5-5f0b-9251-b7fd0ecf5fb0",
+      "label": "Persistence: ~/.ssh/rc exists",
+      "notes": "High. Executed on every SSH login. Not present by default.",
+      "recursive": false,
+      "target": "~/.ssh/rc",
+      "trackIntegrity": false
+    },
+    {
+      "alertConditions": [
+        "onPresence"
+      ],
+      "contentPatterns": [],
+      "id": "de11e9ec-3b9a-5720-964b-3501e82ed14a",
+      "label": "Persistence: /etc/ssh/sshrc exists",
+      "notes": "High. Executed on every SSH login for all users. Not present by default.",
+      "recursive": false,
+      "target": "/etc/ssh/sshrc",
+      "trackIntegrity": false
+    },
+    {
+      "alertConditions": [
+        "onMatch"
+      ],
+      "contentPatterns": [
+        "(?mi)^\\s*(PermitLocalCommand\\s+yes|LocalCommand\\s+\\S)"
+      ],
+      "id": "2180b002-543d-5223-b009-af140a609197",
+      "label": "Access: ~/.ssh/config runs local commands",
+      "notes": "Medium. PermitLocalCommand yes / LocalCommand runs a command on each connection. ProxyCommand is intentionally not matched (common in bastion setups).",
+      "recursive": false,
+      "target": "~/.ssh/config",
+      "trackIntegrity": false
+    },
+    {
+      "alertConditions": [
+        "onChange",
+        "onMatch"
+      ],
+      "contentPatterns": [
+        "(?mi)^\\s*PermitRootLogin\\s+yes\\b",
+        "(?mi)^\\s*PermitEmptyPasswords\\s+yes\\b",
+        "(?mi)^\\s*AuthorizedKeysCommand(User)?\\s+\\S",
+        "(?mi)^\\s*GatewayPorts\\s+(yes|clientspecified)\\b",
+        "(?mi)^\\s*PermitTunnel\\s+(yes|point-to-point|ethernet)\\b"
+      ],
+      "id": "2aee56d7-db62-57c3-838d-305079ff8eeb",
+      "label": "Access: sshd_config weakened or changed",
+      "notes": "Medium. Hash change plus content match for root login, empty passwords, AuthorizedKeysCommand, GatewayPorts, PermitTunnel. Expect a change alert after macOS updates that rewrite it.",
+      "recursive": false,
+      "target": "/etc/ssh/sshd_config",
+      "trackIntegrity": true
+    },
+    {
+      "alertConditions": [
+        "onChange",
+        "onMatch"
+      ],
+      "contentPatterns": [
+        "(?mi)^\\s*PermitRootLogin\\s+yes\\b",
+        "(?mi)^\\s*PermitEmptyPasswords\\s+yes\\b",
+        "(?mi)^\\s*AuthorizedKeysCommand(User)?\\s+\\S",
+        "(?mi)^\\s*GatewayPorts\\s+(yes|clientspecified)\\b",
+        "(?mi)^\\s*PermitTunnel\\s+(yes|point-to-point|ethernet)\\b"
+      ],
+      "id": "33712abe-41ba-5923-bdd5-5752ec045952",
+      "label": "Access: sshd_config.d drop-in weakened or changed",
+      "notes": "Medium. Same checks as sshd_config, applied to drop-in files.",
+      "recursive": false,
+      "target": "/etc/ssh/sshd_config.d/*",
+      "trackIntegrity": true
+    },
+    {
+      "alertConditions": [
+        "onChange",
+        "onMatch"
+      ],
+      "contentPatterns": [
+        "\\bpam_exec\\.so\\b",
+        "\\bpam_script\\b",
+        "(?m)^(?!\\s*#)(?![^\\n]*pam_reattach\\.so)[^\\n]*\\s/\\S+\\.so\\b"
+      ],
+      "id": "d8072530-d339-5d66-a738-098024bbdf08",
+      "label": "Auth: PAM config changed or loads external module",
+      "notes": "High. MITRE T1556.003. Hash change plus pam_exec/pam_script or a module loaded by absolute path (pam_reattach is exempted). Expect one change alert after macOS updates that touch PAM files.",
+      "recursive": false,
+      "target": "/etc/pam.d/*",
+      "trackIntegrity": true
+    },
+    {
+      "alertConditions": [
+        "onChange",
+        "onMatch"
+      ],
+      "contentPatterns": [
+        "(?m)^\\s*(auth|account|password|session)\\s+\\S+\\s+(?!pam_tid\\.so|pam_smartcard\\.so|\\S*pam_reattach\\.so)\\S+\\.so\\b"
+      ],
+      "id": "b55c5c23-4f5a-5b39-a1b0-97fb84c24241",
+      "label": "Auth: sudo_local has modules beyond Touch ID",
+      "notes": "High. MITRE T1556.003. sudo_local is the supported place to enable Touch ID (pam_tid) and smartcards. Any other auth/account/password/session module is flagged (pam_reattach exempted), including third-party pam_watchid.",
+      "recursive": false,
+      "target": "/etc/pam.d/sudo_local",
+      "trackIntegrity": true
+    },
+    {
+      "alertConditions": [
+        "onPresence"
+      ],
+      "contentPatterns": [],
+      "id": "148ff6fb-6343-5e5f-8c42-a53b3cc0bb7e",
+      "label": "Defense evasion: library validation preference exists",
+      "notes": "High. MITRE T1562.001. Created when DisableLibraryValidation is set, which lets unsigned or foreign-signed dylibs load into hardened apps.",
+      "recursive": false,
+      "target": "/Library/Preferences/com.apple.security.libraryvalidation.plist",
+      "trackIntegrity": false
+    },
+    {
+      "alertConditions": [
+        "onChange",
+        "onMatch"
+      ],
+      "contentPatterns": [
+        "(?mi)^[^#\\n]*\\s((ocsp2?|gdmf|mesu|swscan|swdist|oscdn)\\.apple\\.com|updates\\.cdn-apple\\.com)(?=[ \\t#]|$)"
+      ],
+      "id": "f3d8d6f4-be34-52d6-b377-4f30b26b6bcd",
+      "label": "Traffic: /etc/hosts changed or blocks Apple security hosts",
+      "notes": "Medium. Hash change plus entries for Apple OCSP, update and device-management hosts. Some privacy-minded users block ocsp.apple.com deliberately.",
+      "recursive": false,
+      "target": "/etc/hosts",
+      "trackIntegrity": true
+    },
+    {
+      "alertConditions": [
+        "onMatch"
+      ],
+      "contentPatterns": [
+        "\\\"path\\\"\\s*:\\s*\\\"(/private)?(/var)?/tmp/",
+        "\\\"path\\\"\\s*:\\s*\\\"/var/folders/",
+        "\\\"path\\\"\\s*:\\s*\\\"/Users/Shared/",
+        "\\\"path\\\"\\s*:\\s*\\\"[^\\\"]*/\\.[A-Za-z0-9_][^/\\\"]*\\\""
+      ],
+      "id": "c8e1ffa1-eee9-55c6-bd2b-ba2051b4941e",
+      "label": "Browser: Chrome native messaging host (user) runs from temp/hidden path",
+      "notes": "Medium. MITRE T1176.001. Native messaging hosts let a browser extension execute a local binary. Flags a host whose binary lives in temp, shared or hidden paths.",
+      "recursive": false,
+      "target": "~/Library/Application Support/Google/Chrome/NativeMessagingHosts/*.json",
+      "trackIntegrity": false
+    },
+    {
+      "alertConditions": [
+        "onMatch"
+      ],
+      "contentPatterns": [
+        "\\\"path\\\"\\s*:\\s*\\\"(/private)?(/var)?/tmp/",
+        "\\\"path\\\"\\s*:\\s*\\\"/var/folders/",
+        "\\\"path\\\"\\s*:\\s*\\\"/Users/Shared/",
+        "\\\"path\\\"\\s*:\\s*\\\"[^\\\"]*/\\.[A-Za-z0-9_][^/\\\"]*\\\""
+      ],
+      "id": "0f3065ac-ae71-5466-a754-fbfd4f27b3df",
+      "label": "Browser: Chrome native messaging host (system) runs from temp/hidden path",
+      "notes": "Medium. MITRE T1176.001. Native messaging hosts let a browser extension execute a local binary. Flags a host whose binary lives in temp, shared or hidden paths.",
+      "recursive": false,
+      "target": "/Library/Google/Chrome/NativeMessagingHosts/*.json",
+      "trackIntegrity": false
+    },
+    {
+      "alertConditions": [
+        "onMatch"
+      ],
+      "contentPatterns": [
+        "\\\"path\\\"\\s*:\\s*\\\"(/private)?(/var)?/tmp/",
+        "\\\"path\\\"\\s*:\\s*\\\"/var/folders/",
+        "\\\"path\\\"\\s*:\\s*\\\"/Users/Shared/",
+        "\\\"path\\\"\\s*:\\s*\\\"[^\\\"]*/\\.[A-Za-z0-9_][^/\\\"]*\\\""
+      ],
+      "id": "40cf3af6-0ebc-53ea-b1bb-c291f88ea031",
+      "label": "Browser: Firefox native messaging host runs from temp/hidden path",
+      "notes": "Medium. MITRE T1176.001. Native messaging hosts let a browser extension execute a local binary. Flags a host whose binary lives in temp, shared or hidden paths.",
+      "recursive": false,
+      "target": "~/Library/Application Support/Mozilla/NativeMessagingHosts/*.json",
+      "trackIntegrity": false
+    }
+  ],
+  "version": 1
+}

@@ -59,6 +59,8 @@ for scanning. Grant xVigil Full Disk Access for complete file search.
 - [The dashboard, section by section](docs/dashboard.md): what Detections,
   Quarantine Events, XProtect Activity, On-Demand Scan, File Monitor, and
   Protection Status each do
+- [Example remote feed](feeds/README.md): macOS persistence watchlist,
+  feed schema, and validator
 - [Development notes](docs/development.md): layout, CLI harness, macOS
   gotchas, repo hygiene
 

@@ -12,6 +12,14 @@
 - `Tests/`: unit tests against fixture data
 - `scripts/make-app.sh <version>`: builds, signs (ad-hoc), and zips
   `dist/xVigil.app`
+- `feeds/`: example remote watchlist feed, its test samples, and schema
+  notes (see [feeds/README.md](../feeds/README.md))
+- `scripts/gen-example-feed.py`: source of truth for the example feed;
+  edit entries there and regenerate, never edit the JSON by hand
+- `scripts/validate-feed.py <feed.json>`: checks any feed against the
+  fetcher's schema and limits before publishing
+- `scripts/test-feed-patterns.py`: checks the example feed against its
+  samples with Python; `ExampleFeedTests` does the same with ICU
 
 ## CLI harness
 
@@ -93,6 +101,8 @@ git config core.hooksPath .githooks
 ```
 
 It blocks staged changes resembling keys, tokens, credentials, home paths,
-or email addresses. Machine-specific patterns go in
+or email addresses. Fixtures use `/Users/x` (one letter is allowed), and
+`/Users/Shared` is exempt because it is a system folder, not a user.
+Machine-specific patterns go in
 `.git/info/personal-patterns` (never committed). Bypass a false positive
 with `git commit --no-verify`.

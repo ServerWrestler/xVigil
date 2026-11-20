@@ -40,8 +40,11 @@ check "Slack token" 'xox[baprs]-[A-Za-z0-9-]{10,}'
 check "API key" 'sk-[A-Za-z0-9_-]{24,}'
 check "hardcoded credential" "(api[_-]?key|secret|passwd|password|auth[_-]?token)[[:space:]]*[:=][[:space:]]*[\"'][^\"']{6,}"
 # Absolute home paths leak your username. Test fixtures use /Users/x, which
-# the 2+ character requirement deliberately permits.
-check "absolute home path" '/Users/[A-Za-z][A-Za-z0-9_.-]+'
+# the 2+ character requirement deliberately permits. /Users/Shared is a
+# system folder, not a user, so it is removed before matching.
+matches=$(printf '%s\n' "$staged" | sed 's#/Users/Shared##g' \
+    | grep -nE '/Users/[A-Za-z][A-Za-z0-9_.-]+' || true)
+[ -n "$matches" ] && report "absolute home path" "$matches"
 # Retina-suffix filenames (icon@2x.png) are not email addresses.
 emails=$(printf '%s\n' "$staged" \
     | grep -nE '[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+\.[A-Za-z]{2,}' \

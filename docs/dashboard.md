@@ -97,6 +97,8 @@ A file watchlist combining four checks per entry:
 Entries are yours (created in the pane, stored in
 `~/Library/Application Support/xVigil/watchlist.json`, hand-editable) or
 fetched from a remote HTTPS feed, an IOC list you or your team publish.
+[`feeds/`](../feeds/README.md) has an example feed covering macOS
+persistence locations, with the schema and a validator.
 Remote refreshes replace remote entries but never touch local ones or
 integrity baselines. Checks run on demand or hourly/daily; alerts land in
 Detections like everything else. Report-only, like the scanner.
