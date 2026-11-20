@@ -4,7 +4,8 @@
 #   scripts/make-app.sh [version]     e.g. scripts/make-app.sh 0.1.0
 #
 # The bundle is ad-hoc signed: it runs on the build machine as-is, but other
-# Macs will see a Gatekeeper prompt (right-click -> Open the first time).
+# Macs block the first launch: double-click, then System Settings >
+# Privacy & Security > Open Anyway.
 # Proper Developer ID signing + notarization needs an Apple Developer account.
 set -eu
 

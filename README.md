@@ -33,12 +33,22 @@ section by section.
 
 Grab `xVigil-x.y.z.zip` from [Releases](https://github.com/ServerWrestler/xVigil/releases),
 unzip, and drag `xVigil.app` to Applications. Releases are ad-hoc signed, so
-on first launch macOS will warn you. Right-click the app and choose **Open**
-(yes, the Gatekeeper-visibility app makes you talk to Gatekeeper; consider
-it a product demo). Or build it yourself:
+macOS blocks the first launch (yes, the Gatekeeper-visibility app has to get
+past Gatekeeper first). To allow it once:
+
+1. Double-click `xVigil.app`. macOS reports that it was blocked.
+2. Open **System Settings > Privacy & Security** and scroll to **Security**.
+3. Click **Open Anyway** next to the xVigil message, then confirm.
+
+If you don't see the button, try opening the app again first. After this it
+opens normally.
+
+"Open Anyway" skips Apple's check, so only do it for software you trust.
+xVigil is open source, so you can read the code, or build it yourself (a copy
+you build is not quarantined, so macOS doesn't block it):
 
 ```sh
-scripts/make-app.sh 1.2.0   # produces dist/xVigil.app and a zip
+scripts/make-app.sh <version>   # produces dist/xVigil.app and a zip
 ```
 
 Requires macOS 15+. ClamAV (`brew install clamav`) is optional, only needed
