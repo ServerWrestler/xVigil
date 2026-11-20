@@ -65,4 +65,10 @@ final class DetectionMonitor {
     func setFileMonitorFindings(_ findings: [Finding]) {
         fileMonitorFindings = findings
     }
+
+    /// Withdraws alerts raised by File Monitor entries that no longer exist.
+    func removeFileMonitorFindings(forEntries ids: Set<UUID>) {
+        guard !ids.isEmpty else { return }
+        fileMonitorFindings.removeAll { $0.watchlistEntryID.map(ids.contains) ?? false }
+    }
 }

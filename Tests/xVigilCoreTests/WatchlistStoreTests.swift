@@ -72,6 +72,27 @@ import Testing
         #expect(!merged.contains(oldRemote))
     }
 
+    /// Fetching from a different URL drops the previous feed's entries
+    /// entirely: merge replaces every remote entry, not just same-URL ones.
+    @Test func switchingFeedsDropsPreviousFeed() {
+        let local = WatchlistEntry(target: "/mine", label: "mine")
+        let feedA = WatchlistEntry(
+            target: "/a", label: "feed A", source: .remote(url: "https://a.example/w.json"))
+        let feedB = WatchlistEntry(
+            target: "/b", label: "feed B", source: .remote(url: "https://b.example/w.json"))
+
+        let merged = WatchlistStore.merge(remote: [feedB], into: [local, feedA])
+        #expect(merged == [local, feedB])
+    }
+
+    @Test func removingRemoteKeepsOnlyLocal() {
+        let local = WatchlistEntry(target: "/mine", label: "mine")
+        let remote = WatchlistEntry(
+            target: "/r", label: "feed", source: .remote(url: "https://a.example/w.json"))
+        #expect(WatchlistStore.removingRemote(from: [remote, local, remote]) == [local])
+        #expect(WatchlistStore.removingRemote(from: []).isEmpty)
+    }
+
     @Test func mergeCollisionLocalWins() {
         let sharedID = UUID()
         let local = WatchlistEntry(id: sharedID, target: "/mine", label: "local version")

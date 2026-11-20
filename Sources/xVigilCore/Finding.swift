@@ -27,6 +27,9 @@ public struct Finding: Identifiable, Hashable, Sendable {
     public let detail: String
     /// On-disk path, when the finding points at a specific file.
     public let path: String?
+    /// The File Monitor entry that raised it, so the alert can be withdrawn
+    /// when that entry is removed.
+    public let watchlistEntryID: UUID?
 
     public init(
         id: UUID = UUID(),
@@ -34,7 +37,8 @@ public struct Finding: Identifiable, Hashable, Sendable {
         date: Date?,
         title: String,
         detail: String,
-        path: String? = nil
+        path: String? = nil,
+        watchlistEntryID: UUID? = nil
     ) {
         self.id = id
         self.source = source
@@ -42,6 +46,7 @@ public struct Finding: Identifiable, Hashable, Sendable {
         self.title = title
         self.detail = detail
         self.path = path
+        self.watchlistEntryID = watchlistEntryID
     }
 
     /// Builds a finding from a log entry classified as a detection.

@@ -308,6 +308,14 @@ final class DashboardModel {
             await runUpdateUITest(stamp: stamp)
             return
         }
+        // XVIGIL_UITEST_FILEMONITOR: open the File Monitor pane; the pane
+        // then opens the first entry's detail sheet (see FileMonitorPaneView).
+        if ProcessInfo.processInfo.environment["XVIGIL_UITEST_FILEMONITOR"] != nil {
+            section = .fileMonitor
+            stamp("File Monitor: \(watchlist.entries.count) entries, "
+                + "\(watchlist.remoteEntryCount) from the feed")
+            return
+        }
         // Click through a spread of real events — including older ones whose
         // files are long gone, which is the user's reported failure case.
         guard let candidates = try? store.recentEvents(limit: 60), !candidates.isEmpty else {

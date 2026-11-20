@@ -5,6 +5,8 @@ struct FileMonitorPaneView: View {
     let model: DashboardModel
     @State private var showingAddSheet = false
     @State private var editingEntry: WatchlistEntry?
+    @State private var inspectedEntry: WatchlistEntry?
+    @State private var confirmingStopFollowing = false
 
     var body: some View {
         @Bindable var watchlist = model.watchlist
@@ -27,6 +29,18 @@ struct FileMonitorPaneView: View {
                 model.watchlist.updateEntry(updated)
             }
         }
+        .sheet(item: $inspectedEntry) { entry in
+            WatchlistEntryDetail(entry: entry, state: watchlist.state(for: entry))
+        }
+        #if DEBUG
+            .task {
+                // Debug harness: render the detail sheet without a click.
+                if ProcessInfo.processInfo.environment["XVIGIL_UITEST_FILEMONITOR"] == "inspect" {
+                    try? await Task.sleep(for: .seconds(1))
+                    inspectedEntry = watchlist.entries.first
+                }
+            }
+        #endif
     }
 
     private var watchlist: WatchlistController { model.watchlist }
@@ -53,21 +67,31 @@ struct FileMonitorPaneView: View {
 
     private func entryRow(_ entry: WatchlistEntry) -> some View {
         HStack(alignment: .firstTextBaseline) {
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
-                    Text(entry.label).font(.callout.weight(.medium))
-                    sourceBadge(entry.source)
+            // The whole text area opens the entry's details.
+            Button {
+                inspectedEntry = entry
+            } label: {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 6) {
+                            Text(entry.label).font(.callout.weight(.medium))
+                            sourceBadge(entry.source)
+                        }
+                        Text(entry.target)
+                            .font(.caption.monospaced())
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                        Text(summary(for: entry))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
                 }
-                Text(entry.target)
-                    .font(.caption.monospaced())
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                Text(summary(for: entry))
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                .contentShape(Rectangle())
             }
-            Spacer()
+            .buttonStyle(.plain)
+            .help("Show details")
             statusIcon(for: entry)
             if entry.source.isLocal {
                 Button {
@@ -150,9 +174,24 @@ struct FileMonitorPaneView: View {
                 Button("Fetch now") {
                     Task { await watchlist.fetchRemote() }
                 }
-                .disabled(watchlist.isFetching || watchlist.remoteURL.isEmpty)
+                .disabled(watchlist.isFetching || watchlist.isChecking || watchlist.remoteURL.isEmpty)
                 if watchlist.isFetching {
                     ProgressView().controlSize(.small)
+                }
+                Button("Stop following…") {
+                    confirmingStopFollowing = true
+                }
+                .disabled(watchlist.isFetching || watchlist.isChecking
+                    || (watchlist.remoteURL.isEmpty && watchlist.remoteEntryCount == 0))
+                .confirmationDialog(
+                    "Stop following this feed?",
+                    isPresented: $confirmingStopFollowing
+                ) {
+                    Button("Stop Following", role: .destructive) {
+                        watchlist.stopFollowingFeed()
+                    }
+                } message: {
+                    Text(stopFollowingMessage)
                 }
                 Spacer()
                 if let lastFetch = watchlist.lastFetch {
@@ -173,10 +212,16 @@ struct FileMonitorPaneView: View {
             }
             .disabled(!watchlist.autoRefresh)
 
-            Text("Feeds are fetched over HTTPS only and treated as untrusted: entry counts, pattern counts, and pattern sizes are capped, and remote entries can never masquerade as local ones. Local entries always survive a refresh.")
+            Text("Feeds are fetched over HTTPS only and treated as untrusted: entry counts, pattern counts, and pattern sizes are capped, and remote entries can never masquerade as local ones. Fetching a different URL replaces the previous feed's entries. Local entries always survive.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
+    }
+
+    private var stopFollowingMessage: String {
+        let count = watchlist.remoteEntryCount
+        let entries = count == 1 ? "1 feed entry" : "\(count) feed entries"
+        return "Clears the feed URL and removes \(entries) with their baselines and alerts. Your local entries stay."
     }
 
     // MARK: Check
@@ -254,6 +299,100 @@ struct FileMonitorPaneView: View {
                 .font(.caption)
             }
         }
+    }
+}
+
+/// Read-only details for one entry: everything it is configured with plus
+/// its latest results. Mostly for feed entries, whose notes carry severity,
+/// MITRE IDs and known false positives but which can't be opened in the
+/// editor.
+private struct WatchlistEntryDetail: View {
+    let entry: WatchlistEntry
+    let state: WatchlistCheckState?
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(entry.label)
+                .font(.headline)
+                .textSelection(.enabled)
+                .padding()
+            Form {
+                Section("Notes") {
+                    Text(entry.notes ?? "No notes.")
+                        .foregroundStyle(entry.notes == nil ? .secondary : .primary)
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Section("Entry") {
+                    LabeledContent("Target") {
+                        Text(entry.target)
+                            .font(.callout.monospaced())
+                            .textSelection(.enabled)
+                    }
+                    LabeledContent("Source") {
+                        switch entry.source {
+                        case .local:
+                            Text("Local (yours)")
+                        case .remote(let url):
+                            Text(url)
+                                .font(.caption.monospaced())
+                                .textSelection(.enabled)
+                        }
+                    }
+                    LabeledContent("Recursive", value: entry.recursive ? "Yes" : "No")
+                    LabeledContent("Track integrity", value: entry.trackIntegrity ? "Yes (SHA-256)" : "No")
+                    LabeledContent("Alert when",
+                        value: entry.alertConditions.map(\.label).joined(separator: ", "))
+                }
+                if !entry.contentPatterns.isEmpty {
+                    Section("Content patterns") {
+                        ForEach(Array(entry.contentPatterns.enumerated()), id: \.offset) { _, pattern in
+                            Text(pattern)
+                                .font(.caption.monospaced())
+                                .textSelection(.enabled)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                }
+                Section("Last check") {
+                    if let state {
+                        Text(state.lastChecked.map {
+                            "Checked \($0.formatted(date: .abbreviated, time: .shortened))"
+                        } ?? "Checked")
+                        .foregroundStyle(.secondary)
+                        if state.findings.isEmpty {
+                            Text("Nothing matched the target.").foregroundStyle(.secondary)
+                        }
+                        ForEach(state.findings) { finding in
+                            HStack(alignment: .firstTextBaseline) {
+                                Image(systemName: finding.isAlert
+                                    ? "exclamationmark.shield.fill" : "info.circle")
+                                    .foregroundStyle(finding.isAlert ? .red : .secondary)
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text(finding.path)
+                                        .font(.caption.monospaced())
+                                        .textSelection(.enabled)
+                                    Text(finding.reasons.joined(separator: ", "))
+                                        .font(.caption2)
+                                        .foregroundStyle(finding.isAlert ? .red : .secondary)
+                                }
+                            }
+                        }
+                    } else {
+                        Text("Not checked yet.").foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .formStyle(.grouped)
+            HStack {
+                Spacer()
+                Button("Close") { dismiss() }
+                    .keyboardShortcut(.defaultAction)
+            }
+            .padding()
+        }
+        .frame(width: 560, height: 560)
     }
 }
 

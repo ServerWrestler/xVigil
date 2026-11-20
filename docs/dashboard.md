@@ -99,9 +99,17 @@ Entries are yours (created in the pane, stored in
 fetched from a remote HTTPS feed, an IOC list you or your team publish.
 [`feeds/`](../feeds/README.md) has an example feed covering macOS
 persistence locations, with the schema and a validator.
-Remote refreshes replace remote entries but never touch local ones or
-integrity baselines. Checks run on demand or hourly/daily; alerts land in
-Detections like everything else. Report-only, like the scanner.
+Click an entry to see its notes, target, source, checks, content patterns,
+and latest results. Feed entries can't be edited, so this is where their
+notes (severity, MITRE IDs, known false positives) show up.
+
+Each fetch replaces every feed entry, so fetching a different URL swaps one
+feed for another. Entries that stay in the feed keep their integrity
+baselines; entries that leave it lose them, along with any alert they
+raised. **Stop following** clears the feed URL and removes all feed
+entries. Your local entries are never touched. Checks run on demand or
+hourly/daily; alerts land in Detections like everything else. Report-only,
+like the scanner.
 
 ## Protection Status
 

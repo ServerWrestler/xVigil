@@ -150,8 +150,17 @@ final class WatchlistController {
     }
 
     func removeEntry(_ entry: WatchlistEntry) {
-        entries.removeAll { $0.id == entry.id }
-        checkState[entry.id] = nil
+        replaceEntries(entries.filter { $0.id != entry.id })
+    }
+
+    /// Swaps in a new entry list and forgets everything about entries that
+    /// left it: check state, baselines, and any alert they raised (which
+    /// would otherwise keep the shield red until the next check).
+    private func replaceEntries(_ newEntries: [WatchlistEntry]) {
+        let removed = Set(entries.map(\.id)).subtracting(newEntries.map(\.id))
+        entries = newEntries
+        for id in removed { checkState[id] = nil }
+        monitor.removeFileMonitorFindings(forEntries: removed)
         saveEntries()
         saveState()
     }
@@ -169,15 +178,29 @@ final class WatchlistController {
         fetchError = nil
         do {
             let fetched = try await fetcher.fetch(from: url)
-            entries = WatchlistStore.merge(remote: fetched, into: entries)
-            saveEntries()
-            // Merge never touches checkState: baselines for feed entries
-            // that persist across fetches survive by construction.
+            // Baselines for feed entries that persist across fetches survive
+            // (state is keyed by ID); entries the feed dropped, or every
+            // entry of a previous feed, are forgotten.
+            replaceEntries(WatchlistStore.merge(remote: fetched, into: entries))
             lastFetch = Date()
         } catch {
             fetchError = error.localizedDescription
         }
         isFetching = false
+    }
+
+    var remoteEntryCount: Int {
+        entries.filter { !$0.source.isLocal }.count
+    }
+
+    /// Unfollows the feed: clears the URL and removes every feed entry with
+    /// its baselines and alerts. Local entries stay.
+    func stopFollowingFeed() {
+        guard !isChecking, !isFetching else { return }
+        remoteURL = ""
+        lastFetch = nil
+        fetchError = nil
+        replaceEntries(WatchlistStore.removingRemote(from: entries))
     }
 
     // MARK: - Checking
@@ -205,7 +228,8 @@ final class WatchlistController {
                             date: Date(),
                             title: "\(entry.label): \(finding.reasons.joined(separator: ", "))",
                             detail: finding.path,
-                            path: finding.exists ? finding.path : nil))
+                            path: finding.exists ? finding.path : nil,
+                            watchlistEntryID: entry.id))
                         monitor.setFileMonitorFindings(alerts)
                     }
                 case .completed(let entry, let newState):

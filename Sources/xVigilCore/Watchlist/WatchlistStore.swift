@@ -121,6 +121,12 @@ public struct WatchlistStore: Sendable {
         return kept + fetched
     }
 
+    /// Drops every `.remote` entry, for unfollowing a feed. Local entries
+    /// are untouched.
+    public static func removingRemote(from entries: [WatchlistEntry]) -> [WatchlistEntry] {
+        entries.filter(\.source.isLocal)
+    }
+
     // MARK: - JSON plumbing
 
     static func decoder() -> JSONDecoder {
